@@ -46,6 +46,16 @@ type OAuth2TokenResponse struct {
 	ExpiresIn   int64  `json:"expires_in"`
 }
 
+type AccountsResponse struct {
+	Result []Account `json:"result"`
+}
+
+type Account struct {
+	AccountNo   string `json:"accountNo"`
+	AccountSeq  int64  `json:"accountSeq"`
+	AccountType string `json:"accountType"`
+}
+
 type APIError struct {
 	StatusCode      int
 	Code            string
@@ -85,6 +95,21 @@ func (c *Client) IssueOAuth2Token(ctx context.Context, input OAuth2TokenRequest)
 	var out OAuth2TokenResponse
 	if err := c.doJSON(req, &out); err != nil {
 		return OAuth2TokenResponse{}, err
+	}
+	return out, nil
+}
+
+func (c *Client) GetAccounts(ctx context.Context, accessToken string) (AccountsResponse, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+"/api/v1/accounts", nil)
+	if err != nil {
+		return AccountsResponse{}, err
+	}
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("Authorization", "Bearer "+accessToken)
+
+	var out AccountsResponse
+	if err := c.doJSON(req, &out); err != nil {
+		return AccountsResponse{}, err
 	}
 	return out, nil
 }

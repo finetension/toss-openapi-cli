@@ -63,14 +63,25 @@ func (s *Service) Login(ctx context.Context, issuer TokenIssuer, credentials Cre
 }
 
 func (s *Service) Token(ctx context.Context, issuer TokenIssuer) (TokenStatus, error) {
+	_, status, err := s.accessToken(ctx, issuer)
+	return status, err
+}
+
+func (s *Service) AccessToken(ctx context.Context, issuer TokenIssuer) (string, error) {
+	token, _, err := s.accessToken(ctx, issuer)
+	return token, err
+}
+
+func (s *Service) accessToken(ctx context.Context, issuer TokenIssuer) (string, TokenStatus, error) {
 	if _, ok := s.env("TOSS_INVEST_ACCESS_TOKEN"); ok {
-		return TokenStatus{Configured: true, Valid: true, Source: "env"}, nil
+		token, _ := s.env("TOSS_INVEST_ACCESS_TOKEN")
+		return token, TokenStatus{Configured: true, Valid: true, Source: "env"}, nil
 	}
 
 	if encoded, err := s.store.Get(KeyringService, InvestToken); err == nil {
 		token, decodeErr := DecodeCachedToken(encoded)
 		if decodeErr == nil && token.Valid(s.now()) {
-			return TokenStatus{
+			return token.AccessToken, TokenStatus{
 				Configured: true,
 				Valid:      true,
 				Source:     "keyring",
@@ -81,23 +92,23 @@ func (s *Service) Token(ctx context.Context, issuer TokenIssuer) (TokenStatus, e
 
 	credentials, err := s.credentials()
 	if err != nil {
-		return TokenStatus{}, err
+		return "", TokenStatus{}, err
 	}
 	token, err := issuer.IssueOAuth2Token(ctx, invest.OAuth2TokenRequest{
 		ClientID:     credentials.ClientID,
 		ClientSecret: credentials.ClientSecret,
 	})
 	if err != nil {
-		return TokenStatus{}, err
+		return "", TokenStatus{}, err
 	}
 	cached := CachedToken{
 		AccessToken: token.AccessToken,
 		ExpiresAt:   s.now().Add(time.Duration(token.ExpiresIn) * time.Second).UTC(),
 	}
 	if err := StoreToken(s.store, cached); err != nil {
-		return TokenStatus{}, err
+		return "", TokenStatus{}, err
 	}
-	return TokenStatus{
+	return cached.AccessToken, TokenStatus{
 		Configured: true,
 		Valid:      true,
 		Source:     "keyring",

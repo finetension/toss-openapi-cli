@@ -29,6 +29,11 @@ type Dependencies struct {
 	SecretStore auth.SecretStore
 	EnvLookup   auth.EnvLookup
 	TokenIssuer auth.TokenIssuer
+	AccountAPI  AccountAPI
+}
+
+type AccountAPI interface {
+	GetAccounts(ctx context.Context, accessToken string) (invest.AccountsResponse, error)
 }
 
 func Execute() int {
@@ -108,8 +113,55 @@ func newInvestCommand(deps Dependencies) *cobra.Command {
 		Use:   "invest",
 		Short: "Toss Invest Open API commands.",
 	}
+	cmd.AddCommand(newInvestAccountCommand(deps))
 	cmd.AddCommand(newInvestAuthCommand(deps))
 	return cmd
+}
+
+func newInvestAccountCommand(deps Dependencies) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "account",
+		Short: "Manage Toss Invest accounts.",
+	}
+	cmd.AddCommand(newInvestAccountListCommand(deps))
+	return cmd
+}
+
+func newInvestAccountListCommand(deps Dependencies) *cobra.Command {
+	return &cobra.Command{
+		Use:   "list",
+		Short: "List Toss Invest accounts.",
+		Args: func(cmd *cobra.Command, args []string) error {
+			if len(args) > 0 {
+				return apperr.Usage("account list does not accept arguments")
+			}
+			return nil
+		},
+		RunE: func(cmd *cobra.Command, args []string) error {
+			service := auth.NewService(deps.SecretStore, deps.EnvLookup)
+			issuer := deps.TokenIssuer
+			if issuer == nil {
+				issuer = invest.NewClient("", nil)
+			}
+			accessToken, err := service.AccessToken(context.Background(), issuer)
+			if err != nil {
+				return err
+			}
+
+			accountAPI := deps.AccountAPI
+			if accountAPI == nil {
+				accountAPI = invest.NewClient("", nil)
+			}
+			accounts, err := accountAPI.GetAccounts(context.Background(), accessToken)
+			if err != nil {
+				return err
+			}
+			if err := output.WriteJSON(cmd.OutOrStdout(), accounts); err != nil {
+				return apperr.Unexpected(err)
+			}
+			return nil
+		},
+	}
 }
 
 func newInvestAuthCommand(deps Dependencies) *cobra.Command {
@@ -274,6 +326,18 @@ func normalizeCobraError(err error) error {
 	}
 	if errors.Is(err, auth.ErrCredentialsMissing) {
 		return apperr.New(apperr.CodeAuthConfig, "Missing Toss Invest credentials", apperr.ExitAuthConfig)
+	}
+	var apiErr *invest.APIError
+	if errors.As(err, &apiErr) {
+		code := apiErr.Code
+		if code == "" {
+			code = apperr.CodeAPI
+		}
+		message := apiErr.Message
+		if message == "" {
+			message = "Toss Invest API request failed"
+		}
+		return apperr.New(code, message, apperr.ExitAPI)
 	}
 	msg := err.Error()
 	if strings.HasPrefix(msg, "unknown command") ||

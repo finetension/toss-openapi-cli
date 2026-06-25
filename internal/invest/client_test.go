@@ -106,3 +106,54 @@ func TestIssueOAuth2TokenOAuthError(t *testing.T) {
 		t.Fatalf("Message = %q", apiErr.Message)
 	}
 }
+
+func TestGetAccounts(t *testing.T) {
+	var gotMethod string
+	var gotPath string
+	var gotAccept string
+	var gotAuthorization string
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotMethod = r.Method
+		gotPath = r.URL.Path
+		gotAccept = r.Header.Get("Accept")
+		gotAuthorization = r.Header.Get("Authorization")
+
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(AccountsResponse{
+			Result: []Account{
+				{
+					AccountNo:   "12345678",
+					AccountSeq:  1,
+					AccountType: "BROKERAGE",
+				},
+			},
+		})
+	}))
+	defer server.Close()
+
+	client := NewClient(server.URL, server.Client())
+	got, err := client.GetAccounts(context.Background(), "access-token")
+	if err != nil {
+		t.Fatalf("GetAccounts err = %v", err)
+	}
+
+	if gotMethod != http.MethodGet {
+		t.Fatalf("method = %q, want %q", gotMethod, http.MethodGet)
+	}
+	if gotPath != "/api/v1/accounts" {
+		t.Fatalf("path = %q, want %q", gotPath, "/api/v1/accounts")
+	}
+	if gotAccept != "application/json" {
+		t.Fatalf("Accept = %q", gotAccept)
+	}
+	if gotAuthorization != "Bearer access-token" {
+		t.Fatalf("Authorization = %q", gotAuthorization)
+	}
+	if len(got.Result) != 1 {
+		t.Fatalf("len(result) = %d", len(got.Result))
+	}
+	if got.Result[0].AccountNo != "12345678" || got.Result[0].AccountSeq != 1 || got.Result[0].AccountType != "BROKERAGE" {
+		t.Fatalf("account = %+v", got.Result[0])
+	}
+}

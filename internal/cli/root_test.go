@@ -265,6 +265,78 @@ func TestInvestAuthTokenMissingCredentials(t *testing.T) {
 	}
 }
 
+func TestInvestAccountListOutputsAccounts(t *testing.T) {
+	accountAPI := &fakeAccountAPI{
+		response: invest.AccountsResponse{
+			Result: []invest.Account{
+				{
+					AccountNo:   "12345678",
+					AccountSeq:  1,
+					AccountType: "BROKERAGE",
+				},
+			},
+		},
+	}
+
+	stdout, stderr, exitCode := ExecuteForTestWithDeps(Dependencies{
+		SecretStore: auth.NewMemorySecretStore(),
+		EnvLookup: func(key string) (string, bool) {
+			if key == "TOSS_INVEST_ACCESS_TOKEN" {
+				return "env-token", true
+			}
+			return "", false
+		},
+		AccountAPI: accountAPI,
+	}, "invest", "account", "list")
+
+	if exitCode != apperr.ExitSuccess {
+		t.Fatalf("exitCode = %d, want %d; stdout=%s stderr=%s", exitCode, apperr.ExitSuccess, stdout, stderr)
+	}
+	if stderr != "" {
+		t.Fatalf("stderr = %q, want empty", stderr)
+	}
+	if accountAPI.accessToken != "env-token" {
+		t.Fatalf("accessToken = %q", accountAPI.accessToken)
+	}
+
+	var got invest.AccountsResponse
+	if err := json.Unmarshal([]byte(stdout), &got); err != nil {
+		t.Fatalf("stdout is not valid JSON: %v\n%s", err, stdout)
+	}
+	if len(got.Result) != 1 {
+		t.Fatalf("len(result) = %d", len(got.Result))
+	}
+	if got.Result[0].AccountNo != "12345678" || got.Result[0].AccountSeq != 1 || got.Result[0].AccountType != "BROKERAGE" {
+		t.Fatalf("account = %+v", got.Result[0])
+	}
+}
+
+func TestInvestAccountListMissingCredentials(t *testing.T) {
+	stdout, stderr, exitCode := ExecuteForTestWithDeps(Dependencies{
+		SecretStore: auth.NewMemorySecretStore(),
+		TokenIssuer: &fakeTokenIssuer{},
+		AccountAPI:  &fakeAccountAPI{},
+	}, "invest", "account", "list")
+
+	if exitCode != apperr.ExitAuthConfig {
+		t.Fatalf("exitCode = %d, want %d; stdout=%s stderr=%s", exitCode, apperr.ExitAuthConfig, stdout, stderr)
+	}
+	if stderr != "" {
+		t.Fatalf("stderr = %q, want empty", stderr)
+	}
+	var got struct {
+		Error struct {
+			Code string `json:"code"`
+		} `json:"error"`
+	}
+	if err := json.Unmarshal([]byte(stdout), &got); err != nil {
+		t.Fatalf("stdout is not valid JSON: %v\n%s", err, stdout)
+	}
+	if got.Error.Code != apperr.CodeAuthConfig {
+		t.Fatalf("error code = %q", got.Error.Code)
+	}
+}
+
 type fakeTokenIssuer struct {
 	input    invest.OAuth2TokenRequest
 	response invest.OAuth2TokenResponse
@@ -273,5 +345,16 @@ type fakeTokenIssuer struct {
 
 func (f *fakeTokenIssuer) IssueOAuth2Token(ctx context.Context, input invest.OAuth2TokenRequest) (invest.OAuth2TokenResponse, error) {
 	f.input = input
+	return f.response, f.err
+}
+
+type fakeAccountAPI struct {
+	accessToken string
+	response    invest.AccountsResponse
+	err         error
+}
+
+func (f *fakeAccountAPI) GetAccounts(ctx context.Context, accessToken string) (invest.AccountsResponse, error) {
+	f.accessToken = accessToken
 	return f.response, f.err
 }
