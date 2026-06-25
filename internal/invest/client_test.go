@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"testing"
 )
 
@@ -115,7 +116,7 @@ func TestGetAccounts(t *testing.T) {
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		gotMethod = r.Method
-		gotPath = r.URL.Path
+		gotPath = r.URL.EscapedPath()
 		gotAccept = r.Header.Get("Accept")
 		gotAuthorization = r.Header.Get("Authorization")
 
@@ -316,5 +317,111 @@ func TestGetSellableQuantity(t *testing.T) {
 	}
 	if got.Result.SellableQuantity != "5.5" {
 		t.Fatalf("sellable quantity = %+v", got.Result)
+	}
+}
+
+func TestGetOrders(t *testing.T) {
+	var gotMethod string
+	var gotPath string
+	var gotQuery string
+	var gotAccept string
+	var gotAuthorization string
+	var gotAccount string
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotMethod = r.Method
+		gotPath = r.URL.Path
+		gotQuery = r.URL.RawQuery
+		gotAccept = r.Header.Get("Accept")
+		gotAuthorization = r.Header.Get("Authorization")
+		gotAccount = r.Header.Get("X-Tossinvest-Account")
+
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"result":{"orders":[{"orderId":"order-1","symbol":"AAPL"}],"nextCursor":null,"hasNext":false}}`))
+	}))
+	defer server.Close()
+
+	client := NewClient(server.URL, server.Client())
+	got, err := client.GetOrders(context.Background(), "access-token", 1, OrderListParams{
+		Status: "CLOSED",
+		Symbol: "AAPL",
+		From:   "2026-03-01",
+		To:     "2026-03-31",
+		Cursor: "cursor-1",
+		Limit:  20,
+	})
+	if err != nil {
+		t.Fatalf("GetOrders err = %v", err)
+	}
+
+	if gotMethod != http.MethodGet {
+		t.Fatalf("method = %q, want %q", gotMethod, http.MethodGet)
+	}
+	if gotPath != "/api/v1/orders" {
+		t.Fatalf("path = %q, want %q", gotPath, "/api/v1/orders")
+	}
+	values, err := url.ParseQuery(gotQuery)
+	if err != nil {
+		t.Fatalf("ParseQuery err = %v", err)
+	}
+	if values.Get("status") != "CLOSED" || values.Get("symbol") != "AAPL" || values.Get("from") != "2026-03-01" || values.Get("to") != "2026-03-31" || values.Get("cursor") != "cursor-1" || values.Get("limit") != "20" {
+		t.Fatalf("query = %q", gotQuery)
+	}
+	if gotAccept != "application/json" {
+		t.Fatalf("Accept = %q", gotAccept)
+	}
+	if gotAuthorization != "Bearer access-token" {
+		t.Fatalf("Authorization = %q", gotAuthorization)
+	}
+	if gotAccount != "1" {
+		t.Fatalf("X-Tossinvest-Account = %q", gotAccount)
+	}
+	if string(got.Result) != `{"orders":[{"orderId":"order-1","symbol":"AAPL"}],"nextCursor":null,"hasNext":false}` {
+		t.Fatalf("result = %s", got.Result)
+	}
+}
+
+func TestGetOrder(t *testing.T) {
+	var gotMethod string
+	var gotPath string
+	var gotAccept string
+	var gotAuthorization string
+	var gotAccount string
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotMethod = r.Method
+		gotPath = r.URL.EscapedPath()
+		gotAccept = r.Header.Get("Accept")
+		gotAuthorization = r.Header.Get("Authorization")
+		gotAccount = r.Header.Get("X-Tossinvest-Account")
+
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"result":{"orderId":"order/id","symbol":"AAPL"}}`))
+	}))
+	defer server.Close()
+
+	client := NewClient(server.URL, server.Client())
+	got, err := client.GetOrder(context.Background(), "access-token", 1, "order/id")
+	if err != nil {
+		t.Fatalf("GetOrder err = %v", err)
+	}
+
+	if gotMethod != http.MethodGet {
+		t.Fatalf("method = %q, want %q", gotMethod, http.MethodGet)
+	}
+	if gotPath != "/api/v1/orders/order%2Fid" {
+		t.Fatalf("path = %q", gotPath)
+	}
+	if gotAccept != "application/json" {
+		t.Fatalf("Accept = %q", gotAccept)
+	}
+	if gotAuthorization != "Bearer access-token" {
+		t.Fatalf("Authorization = %q", gotAuthorization)
+	}
+	if gotAccount != "1" {
+		t.Fatalf("X-Tossinvest-Account = %q", gotAccount)
+	}
+	if string(got.Result) != `{"orderId":"order/id","symbol":"AAPL"}` {
+		t.Fatalf("result = %s", got.Result)
 	}
 }

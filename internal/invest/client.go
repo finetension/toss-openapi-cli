@@ -85,6 +85,23 @@ type SellableQuantity struct {
 	SellableQuantity string `json:"sellableQuantity"`
 }
 
+type OrderListParams struct {
+	Status string
+	Symbol string
+	From   string
+	To     string
+	Cursor string
+	Limit  int
+}
+
+type OrdersResponse struct {
+	Result json.RawMessage `json:"result"`
+}
+
+type OrderResponse struct {
+	Result json.RawMessage `json:"result"`
+}
+
 type APIError struct {
 	StatusCode      int
 	Code            string
@@ -194,6 +211,56 @@ func (c *Client) GetSellableQuantity(ctx context.Context, accessToken string, ac
 	var out SellableQuantityResponse
 	if err := c.doJSON(req, &out); err != nil {
 		return SellableQuantityResponse{}, err
+	}
+	return out, nil
+}
+
+func (c *Client) GetOrders(ctx context.Context, accessToken string, accountSeq int64, params OrderListParams) (OrdersResponse, error) {
+	values := url.Values{}
+	values.Set("status", params.Status)
+	if params.Symbol != "" {
+		values.Set("symbol", params.Symbol)
+	}
+	if params.From != "" {
+		values.Set("from", params.From)
+	}
+	if params.To != "" {
+		values.Set("to", params.To)
+	}
+	if params.Cursor != "" {
+		values.Set("cursor", params.Cursor)
+	}
+	if params.Limit > 0 {
+		values.Set("limit", strconv.Itoa(params.Limit))
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+"/api/v1/orders?"+values.Encode(), nil)
+	if err != nil {
+		return OrdersResponse{}, err
+	}
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("Authorization", "Bearer "+accessToken)
+	req.Header.Set("X-Tossinvest-Account", strconv.FormatInt(accountSeq, 10))
+
+	var out OrdersResponse
+	if err := c.doJSON(req, &out); err != nil {
+		return OrdersResponse{}, err
+	}
+	return out, nil
+}
+
+func (c *Client) GetOrder(ctx context.Context, accessToken string, accountSeq int64, orderID string) (OrderResponse, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+"/api/v1/orders/"+url.PathEscape(orderID), nil)
+	if err != nil {
+		return OrderResponse{}, err
+	}
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("Authorization", "Bearer "+accessToken)
+	req.Header.Set("X-Tossinvest-Account", strconv.FormatInt(accountSeq, 10))
+
+	var out OrderResponse
+	if err := c.doJSON(req, &out); err != nil {
+		return OrderResponse{}, err
 	}
 	return out, nil
 }

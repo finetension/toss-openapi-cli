@@ -1,8 +1,10 @@
 package cli
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"reflect"
 	"testing"
 
 	"github.com/finetension/toss-openapi-cli/internal/apperr"
@@ -517,6 +519,125 @@ func TestInvestOrderInfoBuyingPowerRequiresAccountSeq(t *testing.T) {
 	}
 }
 
+func TestInvestOrderHistoryListOutputsOrders(t *testing.T) {
+	orderHistory := &fakeOrderHistoryAPI{
+		ordersResponse: invest.OrdersResponse{
+			Result: json.RawMessage(`{"orders":[{"orderId":"order-1","symbol":"AAPL"}],"nextCursor":null,"hasNext":false}`),
+		},
+	}
+
+	stdout, stderr, exitCode := ExecuteForTestWithDeps(Dependencies{
+		SecretStore: auth.NewMemorySecretStore(),
+		EnvLookup: func(key string) (string, bool) {
+			if key == "TOSS_INVEST_ACCESS_TOKEN" {
+				return "env-token", true
+			}
+			return "", false
+		},
+		OrderHistory: orderHistory,
+	}, "invest", "order-history", "list", "--account-seq", "1", "--status", "CLOSED", "--symbol", "AAPL", "--from", "2026-03-01", "--to", "2026-03-31", "--cursor", "cursor-1", "--limit", "20")
+
+	if exitCode != apperr.ExitSuccess {
+		t.Fatalf("exitCode = %d, want %d; stdout=%s stderr=%s", exitCode, apperr.ExitSuccess, stdout, stderr)
+	}
+	if stderr != "" {
+		t.Fatalf("stderr = %q, want empty", stderr)
+	}
+	if orderHistory.accessToken != "env-token" {
+		t.Fatalf("accessToken = %q", orderHistory.accessToken)
+	}
+	if orderHistory.accountSeq != 1 {
+		t.Fatalf("accountSeq = %d", orderHistory.accountSeq)
+	}
+	wantParams := invest.OrderListParams{
+		Status: "CLOSED",
+		Symbol: "AAPL",
+		From:   "2026-03-01",
+		To:     "2026-03-31",
+		Cursor: "cursor-1",
+		Limit:  20,
+	}
+	if !reflect.DeepEqual(orderHistory.params, wantParams) {
+		t.Fatalf("params = %+v, want %+v", orderHistory.params, wantParams)
+	}
+
+	var got invest.OrdersResponse
+	if err := json.Unmarshal([]byte(stdout), &got); err != nil {
+		t.Fatalf("stdout is not valid JSON: %v\n%s", err, stdout)
+	}
+	if compactJSON(t, got.Result) != compactJSON(t, orderHistory.ordersResponse.Result) {
+		t.Fatalf("result = %s", got.Result)
+	}
+}
+
+func TestInvestOrderHistoryGetOutputsOrder(t *testing.T) {
+	orderHistory := &fakeOrderHistoryAPI{
+		orderResponse: invest.OrderResponse{
+			Result: json.RawMessage(`{"orderId":"order-1","symbol":"AAPL"}`),
+		},
+	}
+
+	stdout, stderr, exitCode := ExecuteForTestWithDeps(Dependencies{
+		SecretStore: auth.NewMemorySecretStore(),
+		EnvLookup: func(key string) (string, bool) {
+			if key == "TOSS_INVEST_ACCESS_TOKEN" {
+				return "env-token", true
+			}
+			return "", false
+		},
+		OrderHistory: orderHistory,
+	}, "invest", "order-history", "get", "order-1", "--account-seq", "1")
+
+	if exitCode != apperr.ExitSuccess {
+		t.Fatalf("exitCode = %d, want %d; stdout=%s stderr=%s", exitCode, apperr.ExitSuccess, stdout, stderr)
+	}
+	if stderr != "" {
+		t.Fatalf("stderr = %q, want empty", stderr)
+	}
+	if orderHistory.accessToken != "env-token" {
+		t.Fatalf("accessToken = %q", orderHistory.accessToken)
+	}
+	if orderHistory.accountSeq != 1 {
+		t.Fatalf("accountSeq = %d", orderHistory.accountSeq)
+	}
+	if orderHistory.orderID != "order-1" {
+		t.Fatalf("orderID = %q", orderHistory.orderID)
+	}
+
+	var got invest.OrderResponse
+	if err := json.Unmarshal([]byte(stdout), &got); err != nil {
+		t.Fatalf("stdout is not valid JSON: %v\n%s", err, stdout)
+	}
+	if compactJSON(t, got.Result) != compactJSON(t, orderHistory.orderResponse.Result) {
+		t.Fatalf("result = %s", got.Result)
+	}
+}
+
+func TestInvestOrderHistoryListRequiresStatus(t *testing.T) {
+	stdout, stderr, exitCode := ExecuteForTestWithDeps(Dependencies{
+		SecretStore:  auth.NewMemorySecretStore(),
+		OrderHistory: &fakeOrderHistoryAPI{},
+	}, "invest", "order-history", "list", "--account-seq", "1")
+
+	if exitCode != apperr.ExitUsage {
+		t.Fatalf("exitCode = %d, want %d; stdout=%s stderr=%s", exitCode, apperr.ExitUsage, stdout, stderr)
+	}
+	if stderr != "" {
+		t.Fatalf("stderr = %q, want empty", stderr)
+	}
+	var got struct {
+		Error struct {
+			Code string `json:"code"`
+		} `json:"error"`
+	}
+	if err := json.Unmarshal([]byte(stdout), &got); err != nil {
+		t.Fatalf("stdout is not valid JSON: %v\n%s", err, stdout)
+	}
+	if got.Error.Code != apperr.CodeUsage {
+		t.Fatalf("error code = %q", got.Error.Code)
+	}
+}
+
 type fakeTokenIssuer struct {
 	input    invest.OAuth2TokenRequest
 	response invest.OAuth2TokenResponse
@@ -572,4 +693,38 @@ func (f *fakeOrderInfoAPI) GetSellableQuantity(ctx context.Context, accessToken 
 	f.accountSeq = accountSeq
 	f.symbol = symbol
 	return f.sellableQuantityResponse, f.err
+}
+
+type fakeOrderHistoryAPI struct {
+	accessToken    string
+	accountSeq     int64
+	params         invest.OrderListParams
+	orderID        string
+	ordersResponse invest.OrdersResponse
+	orderResponse  invest.OrderResponse
+	err            error
+}
+
+func (f *fakeOrderHistoryAPI) GetOrders(ctx context.Context, accessToken string, accountSeq int64, params invest.OrderListParams) (invest.OrdersResponse, error) {
+	f.accessToken = accessToken
+	f.accountSeq = accountSeq
+	f.params = params
+	return f.ordersResponse, f.err
+}
+
+func (f *fakeOrderHistoryAPI) GetOrder(ctx context.Context, accessToken string, accountSeq int64, orderID string) (invest.OrderResponse, error) {
+	f.accessToken = accessToken
+	f.accountSeq = accountSeq
+	f.orderID = orderID
+	return f.orderResponse, f.err
+}
+
+func compactJSON(t *testing.T, raw json.RawMessage) string {
+	t.Helper()
+
+	var out bytes.Buffer
+	if err := json.Compact(&out, raw); err != nil {
+		t.Fatalf("json.Compact err = %v", err)
+	}
+	return out.String()
 }
