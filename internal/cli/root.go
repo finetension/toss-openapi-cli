@@ -1,0 +1,105 @@
+package cli
+
+import (
+	"bytes"
+	"errors"
+	"io"
+	"os"
+	"strings"
+
+	"github.com/spf13/cobra"
+
+	"github.com/finetension/toss-openapi-cli/internal/apperr"
+	"github.com/finetension/toss-openapi-cli/internal/output"
+	"github.com/finetension/toss-openapi-cli/internal/version"
+)
+
+type IOStreams struct {
+	In     io.Reader
+	Out    io.Writer
+	ErrOut io.Writer
+}
+
+func Execute() int {
+	streams := IOStreams{
+		In:     os.Stdin,
+		Out:    os.Stdout,
+		ErrOut: os.Stderr,
+	}
+	cmd := NewRootCommand(streams)
+	if err := cmd.Execute(); err != nil {
+		return output.WriteError(cmd.OutOrStdout(), normalizeCobraError(err))
+	}
+	return apperr.ExitSuccess
+}
+
+func NewRootCommand(streams IOStreams) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:           "tosscli",
+		Short:         "Unofficial CLI built on public Toss Open APIs.",
+		SilenceUsage:  true,
+		SilenceErrors: true,
+	}
+
+	if streams.Out != nil {
+		cmd.SetOut(streams.Out)
+	}
+	if streams.ErrOut != nil {
+		cmd.SetErr(streams.ErrOut)
+	}
+	if streams.In != nil {
+		cmd.SetIn(streams.In)
+	}
+
+	cmd.AddCommand(newVersionCommand())
+	return cmd
+}
+
+func ExecuteForTest(args ...string) (stdout string, stderr string, exitCode int) {
+	var out bytes.Buffer
+	var errOut bytes.Buffer
+	cmd := NewRootCommand(IOStreams{Out: &out, ErrOut: &errOut})
+	cmd.SetArgs(args)
+
+	if err := cmd.Execute(); err != nil {
+		exitCode = output.WriteError(&out, normalizeCobraError(err))
+		return out.String(), errOut.String(), exitCode
+	}
+	return out.String(), errOut.String(), apperr.ExitSuccess
+}
+
+func newVersionCommand() *cobra.Command {
+	return &cobra.Command{
+		Use:   "version",
+		Short: "Print version information.",
+		Args: func(cmd *cobra.Command, args []string) error {
+			if len(args) > 0 {
+				return apperr.Usage("version does not accept arguments")
+			}
+			return nil
+		},
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := output.WriteJSON(cmd.OutOrStdout(), version.Get()); err != nil {
+				return apperr.Unexpected(err)
+			}
+			return nil
+		},
+	}
+}
+
+func normalizeCobraError(err error) error {
+	if err == nil {
+		return nil
+	}
+	var app *apperr.AppError
+	if errors.As(err, &app) {
+		return app
+	}
+	msg := err.Error()
+	if strings.HasPrefix(msg, "unknown command") ||
+		strings.HasPrefix(msg, "unknown flag") ||
+		strings.HasPrefix(msg, "invalid argument") {
+		return apperr.Usage(msg)
+	}
+	return apperr.Unexpected(err)
+}
