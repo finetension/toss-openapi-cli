@@ -354,6 +354,7 @@ func TestInvestMarketDataPricesOutputsPrices(t *testing.T) {
 	}
 
 	stdout, stderr, exitCode := ExecuteForTestWithDeps(Dependencies{
+		EnvLookup:  testEnvAccessToken,
 		MarketData: marketData,
 	}, "invest", "market-data", "prices", "--symbols", "AAPL,MSFT")
 
@@ -365,6 +366,9 @@ func TestInvestMarketDataPricesOutputsPrices(t *testing.T) {
 	}
 	if marketData.symbols != "AAPL,MSFT" {
 		t.Fatalf("symbols = %q", marketData.symbols)
+	}
+	if marketData.accessToken != "env-token" {
+		t.Fatalf("accessToken = %q", marketData.accessToken)
 	}
 
 	var got invest.PricesResponse
@@ -411,6 +415,7 @@ func TestInvestMarketDataOrderbookOutputsOrderbook(t *testing.T) {
 	}
 
 	stdout, stderr, exitCode := ExecuteForTestWithDeps(Dependencies{
+		EnvLookup:  testEnvAccessToken,
 		MarketData: marketData,
 	}, "invest", "market-data", "orderbook", "--symbol", "AAPL")
 
@@ -422,6 +427,9 @@ func TestInvestMarketDataOrderbookOutputsOrderbook(t *testing.T) {
 	}
 	if marketData.symbol != "AAPL" {
 		t.Fatalf("symbol = %q", marketData.symbol)
+	}
+	if marketData.accessToken != "env-token" {
+		t.Fatalf("accessToken = %q", marketData.accessToken)
 	}
 
 	var got invest.OrderbookResponse
@@ -441,6 +449,7 @@ func TestInvestMarketDataTradesOutputsTrades(t *testing.T) {
 	}
 
 	stdout, stderr, exitCode := ExecuteForTestWithDeps(Dependencies{
+		EnvLookup:  testEnvAccessToken,
 		MarketData: marketData,
 	}, "invest", "market-data", "trades", "--symbol", "AAPL", "--count", "10")
 
@@ -452,6 +461,9 @@ func TestInvestMarketDataTradesOutputsTrades(t *testing.T) {
 	}
 	if marketData.symbol != "AAPL" || marketData.count != 10 {
 		t.Fatalf("marketData = %+v", marketData)
+	}
+	if marketData.accessToken != "env-token" {
+		t.Fatalf("accessToken = %q", marketData.accessToken)
 	}
 
 	var got invest.TradesResponse
@@ -471,6 +483,7 @@ func TestInvestStockInfoStocksOutputsStocks(t *testing.T) {
 	}
 
 	stdout, stderr, exitCode := ExecuteForTestWithDeps(Dependencies{
+		EnvLookup: testEnvAccessToken,
 		StockInfo: stockInfo,
 	}, "invest", "stock-info", "stocks", "--symbols", "AAPL,MSFT")
 
@@ -482,6 +495,9 @@ func TestInvestStockInfoStocksOutputsStocks(t *testing.T) {
 	}
 	if stockInfo.symbols != "AAPL,MSFT" {
 		t.Fatalf("symbols = %q", stockInfo.symbols)
+	}
+	if stockInfo.accessToken != "env-token" {
+		t.Fatalf("accessToken = %q", stockInfo.accessToken)
 	}
 
 	var got invest.StocksResponse
@@ -501,6 +517,7 @@ func TestInvestStockInfoWarningsOutputsWarnings(t *testing.T) {
 	}
 
 	stdout, stderr, exitCode := ExecuteForTestWithDeps(Dependencies{
+		EnvLookup: testEnvAccessToken,
 		StockInfo: stockInfo,
 	}, "invest", "stock-info", "warnings", "AAPL")
 
@@ -512,6 +529,9 @@ func TestInvestStockInfoWarningsOutputsWarnings(t *testing.T) {
 	}
 	if stockInfo.symbol != "AAPL" {
 		t.Fatalf("symbol = %q", stockInfo.symbol)
+	}
+	if stockInfo.accessToken != "env-token" {
+		t.Fatalf("accessToken = %q", stockInfo.accessToken)
 	}
 
 	var got invest.StockWarningsResponse
@@ -531,6 +551,7 @@ func TestInvestMarketDataPriceLimitsOutputsLimits(t *testing.T) {
 	}
 
 	stdout, stderr, exitCode := ExecuteForTestWithDeps(Dependencies{
+		EnvLookup:  testEnvAccessToken,
 		MarketData: marketData,
 	}, "invest", "market-data", "price-limits", "--symbol", "AAPL")
 
@@ -542,6 +563,9 @@ func TestInvestMarketDataPriceLimitsOutputsLimits(t *testing.T) {
 	}
 	if marketData.symbol != "AAPL" {
 		t.Fatalf("symbol = %q", marketData.symbol)
+	}
+	if marketData.accessToken != "env-token" {
+		t.Fatalf("accessToken = %q", marketData.accessToken)
 	}
 
 	var got invest.PriceLimitResponse
@@ -562,6 +586,7 @@ func TestInvestMarketDataCandlesOutputsCandles(t *testing.T) {
 	}
 
 	stdout, stderr, exitCode := ExecuteForTestWithDeps(Dependencies{
+		EnvLookup:  testEnvAccessToken,
 		MarketData: marketData,
 	}, "invest", "market-data", "candles", "--symbol", "AAPL", "--interval", "1d", "--count", "10", "--before", "2026-03-25T09:00:00+09:00", "--adjusted=false")
 
@@ -574,6 +599,9 @@ func TestInvestMarketDataCandlesOutputsCandles(t *testing.T) {
 	want := invest.CandleParams{Symbol: "AAPL", Interval: "1d", Count: 10, Before: "2026-03-25T09:00:00+09:00", Adjusted: &adjusted}
 	if !reflect.DeepEqual(marketData.candleParams, want) {
 		t.Fatalf("candleParams = %+v", marketData.candleParams)
+	}
+	if marketData.accessToken != "env-token" {
+		t.Fatalf("accessToken = %q", marketData.accessToken)
 	}
 
 	var got invest.CandlesResponse
@@ -593,6 +621,7 @@ func TestInvestMarketInfoExchangeRateOutputsRate(t *testing.T) {
 	}
 
 	stdout, stderr, exitCode := ExecuteForTestWithDeps(Dependencies{
+		EnvLookup:  testEnvAccessToken,
 		MarketInfo: marketInfo,
 	}, "invest", "market-info", "exchange-rate", "--base-currency", "usd", "--quote-currency", "krw", "--date-time", "2026-03-25T09:30:00+09:00")
 
@@ -605,6 +634,9 @@ func TestInvestMarketInfoExchangeRateOutputsRate(t *testing.T) {
 	want := invest.ExchangeRateParams{BaseCurrency: "USD", QuoteCurrency: "KRW", DateTime: "2026-03-25T09:30:00+09:00"}
 	if !reflect.DeepEqual(marketInfo.exchangeRateParams, want) {
 		t.Fatalf("exchangeRateParams = %+v", marketInfo.exchangeRateParams)
+	}
+	if marketInfo.accessToken != "env-token" {
+		t.Fatalf("accessToken = %q", marketInfo.accessToken)
 	}
 
 	var got invest.ExchangeRateResponse
@@ -624,6 +656,7 @@ func TestInvestMarketInfoCalendarOutputsCalendar(t *testing.T) {
 	}
 
 	stdout, stderr, exitCode := ExecuteForTestWithDeps(Dependencies{
+		EnvLookup:  testEnvAccessToken,
 		MarketInfo: marketInfo,
 	}, "invest", "market-info", "calendar", "us", "--date", "2026-03-25")
 
@@ -635,6 +668,9 @@ func TestInvestMarketInfoCalendarOutputsCalendar(t *testing.T) {
 	}
 	if marketInfo.market != "US" || marketInfo.date != "2026-03-25" {
 		t.Fatalf("marketInfo = %+v", marketInfo)
+	}
+	if marketInfo.accessToken != "env-token" {
+		t.Fatalf("accessToken = %q", marketInfo.accessToken)
 	}
 
 	var got invest.MarketCalendarResponse
@@ -1269,6 +1305,7 @@ func (f *fakeAccountAPI) GetAccounts(ctx context.Context, accessToken string) (i
 }
 
 type fakeMarketDataAPI struct {
+	accessToken        string
 	symbol             string
 	symbols            string
 	count              int
@@ -1281,33 +1318,39 @@ type fakeMarketDataAPI struct {
 	err                error
 }
 
-func (f *fakeMarketDataAPI) GetPrices(ctx context.Context, symbols string) (invest.PricesResponse, error) {
+func (f *fakeMarketDataAPI) GetPrices(ctx context.Context, accessToken string, symbols string) (invest.PricesResponse, error) {
+	f.accessToken = accessToken
 	f.symbols = symbols
 	return f.response, f.err
 }
 
-func (f *fakeMarketDataAPI) GetOrderbook(ctx context.Context, symbol string) (invest.OrderbookResponse, error) {
+func (f *fakeMarketDataAPI) GetOrderbook(ctx context.Context, accessToken string, symbol string) (invest.OrderbookResponse, error) {
+	f.accessToken = accessToken
 	f.symbol = symbol
 	return f.orderbookResponse, f.err
 }
 
-func (f *fakeMarketDataAPI) GetTrades(ctx context.Context, symbol string, count int) (invest.TradesResponse, error) {
+func (f *fakeMarketDataAPI) GetTrades(ctx context.Context, accessToken string, symbol string, count int) (invest.TradesResponse, error) {
+	f.accessToken = accessToken
 	f.symbol = symbol
 	f.count = count
 	return f.tradesResponse, f.err
 }
 
-func (f *fakeMarketDataAPI) GetPriceLimit(ctx context.Context, symbol string) (invest.PriceLimitResponse, error) {
+func (f *fakeMarketDataAPI) GetPriceLimit(ctx context.Context, accessToken string, symbol string) (invest.PriceLimitResponse, error) {
+	f.accessToken = accessToken
 	f.symbol = symbol
 	return f.priceLimitResponse, f.err
 }
 
-func (f *fakeMarketDataAPI) GetCandles(ctx context.Context, params invest.CandleParams) (invest.CandlesResponse, error) {
+func (f *fakeMarketDataAPI) GetCandles(ctx context.Context, accessToken string, params invest.CandleParams) (invest.CandlesResponse, error) {
+	f.accessToken = accessToken
 	f.candleParams = params
 	return f.candlesResponse, f.err
 }
 
 type fakeMarketInfoAPI struct {
+	accessToken          string
 	market               string
 	date                 string
 	exchangeRateParams   invest.ExchangeRateParams
@@ -1316,18 +1359,21 @@ type fakeMarketInfoAPI struct {
 	err                  error
 }
 
-func (f *fakeMarketInfoAPI) GetExchangeRate(ctx context.Context, params invest.ExchangeRateParams) (invest.ExchangeRateResponse, error) {
+func (f *fakeMarketInfoAPI) GetExchangeRate(ctx context.Context, accessToken string, params invest.ExchangeRateParams) (invest.ExchangeRateResponse, error) {
+	f.accessToken = accessToken
 	f.exchangeRateParams = params
 	return f.exchangeRateResponse, f.err
 }
 
-func (f *fakeMarketInfoAPI) GetMarketCalendar(ctx context.Context, market string, date string) (invest.MarketCalendarResponse, error) {
+func (f *fakeMarketInfoAPI) GetMarketCalendar(ctx context.Context, accessToken string, market string, date string) (invest.MarketCalendarResponse, error) {
+	f.accessToken = accessToken
 	f.market = market
 	f.date = date
 	return f.calendarResponse, f.err
 }
 
 type fakeStockInfoAPI struct {
+	accessToken      string
 	symbol           string
 	symbols          string
 	stocksResponse   invest.StocksResponse
@@ -1335,12 +1381,14 @@ type fakeStockInfoAPI struct {
 	err              error
 }
 
-func (f *fakeStockInfoAPI) GetStocks(ctx context.Context, symbols string) (invest.StocksResponse, error) {
+func (f *fakeStockInfoAPI) GetStocks(ctx context.Context, accessToken string, symbols string) (invest.StocksResponse, error) {
+	f.accessToken = accessToken
 	f.symbols = symbols
 	return f.stocksResponse, f.err
 }
 
-func (f *fakeStockInfoAPI) GetStockWarnings(ctx context.Context, symbol string) (invest.StockWarningsResponse, error) {
+func (f *fakeStockInfoAPI) GetStockWarnings(ctx context.Context, accessToken string, symbol string) (invest.StockWarningsResponse, error) {
+	f.accessToken = accessToken
 	f.symbol = symbol
 	return f.warningsResponse, f.err
 }
@@ -1457,4 +1505,11 @@ func compactJSON(t *testing.T, raw json.RawMessage) string {
 		t.Fatalf("json.Compact err = %v", err)
 	}
 	return out.String()
+}
+
+func testEnvAccessToken(key string) (string, bool) {
+	if key == "TOSS_INVEST_ACCESS_TOKEN" {
+		return "env-token", true
+	}
+	return "", false
 }

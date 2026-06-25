@@ -186,7 +186,7 @@ func TestGetPrices(t *testing.T) {
 	defer server.Close()
 
 	client := NewClient(server.URL, server.Client())
-	got, err := client.GetPrices(context.Background(), "AAPL,MSFT")
+	got, err := client.GetPrices(context.Background(), "access-token", "AAPL,MSFT")
 	if err != nil {
 		t.Fatalf("GetPrices err = %v", err)
 	}
@@ -722,7 +722,7 @@ func TestGetOrderbook(t *testing.T) {
 	defer server.Close()
 
 	client := NewClient(server.URL, server.Client())
-	got, err := client.GetOrderbook(context.Background(), "AAPL")
+	got, err := client.GetOrderbook(context.Background(), "access-token", "AAPL")
 	if err != nil {
 		t.Fatalf("GetOrderbook err = %v", err)
 	}
@@ -764,7 +764,7 @@ func TestGetTrades(t *testing.T) {
 	defer server.Close()
 
 	client := NewClient(server.URL, server.Client())
-	got, err := client.GetTrades(context.Background(), "AAPL", 10)
+	got, err := client.GetTrades(context.Background(), "access-token", "AAPL", 10)
 	if err != nil {
 		t.Fatalf("GetTrades err = %v", err)
 	}
@@ -804,7 +804,7 @@ func TestGetStocks(t *testing.T) {
 	defer server.Close()
 
 	client := NewClient(server.URL, server.Client())
-	got, err := client.GetStocks(context.Background(), "AAPL,MSFT")
+	got, err := client.GetStocks(context.Background(), "access-token", "AAPL,MSFT")
 	if err != nil {
 		t.Fatalf("GetStocks err = %v", err)
 	}
@@ -842,7 +842,7 @@ func TestGetStockWarnings(t *testing.T) {
 	defer server.Close()
 
 	client := NewClient(server.URL, server.Client())
-	got, err := client.GetStockWarnings(context.Background(), "AAPL/TEST")
+	got, err := client.GetStockWarnings(context.Background(), "access-token", "AAPL/TEST")
 	if err != nil {
 		t.Fatalf("GetStockWarnings err = %v", err)
 	}
@@ -874,7 +874,7 @@ func TestGetPriceLimit(t *testing.T) {
 	defer server.Close()
 
 	client := NewClient(server.URL, server.Client())
-	got, err := client.GetPriceLimit(context.Background(), "AAPL")
+	got, err := client.GetPriceLimit(context.Background(), "access-token", "AAPL")
 	if err != nil {
 		t.Fatalf("GetPriceLimit err = %v", err)
 	}
@@ -900,7 +900,7 @@ func TestGetCandles(t *testing.T) {
 	defer server.Close()
 
 	client := NewClient(server.URL, server.Client())
-	got, err := client.GetCandles(context.Background(), CandleParams{
+	got, err := client.GetCandles(context.Background(), "access-token", CandleParams{
 		Symbol:   "AAPL",
 		Interval: "1d",
 		Count:    10,
@@ -935,7 +935,7 @@ func TestGetExchangeRate(t *testing.T) {
 	defer server.Close()
 
 	client := NewClient(server.URL, server.Client())
-	got, err := client.GetExchangeRate(context.Background(), ExchangeRateParams{
+	got, err := client.GetExchangeRate(context.Background(), "access-token", ExchangeRateParams{
 		BaseCurrency:  "USD",
 		QuoteCurrency: "KRW",
 		DateTime:      "2026-03-25T09:30:00+09:00",
@@ -968,7 +968,7 @@ func TestGetMarketCalendar(t *testing.T) {
 	defer server.Close()
 
 	client := NewClient(server.URL, server.Client())
-	got, err := client.GetMarketCalendar(context.Background(), "US", "2026-03-25")
+	got, err := client.GetMarketCalendar(context.Background(), "access-token", "US", "2026-03-25")
 	if err != nil {
 		t.Fatalf("GetMarketCalendar err = %v", err)
 	}

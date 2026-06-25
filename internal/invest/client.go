@@ -237,7 +237,7 @@ func (c *Client) GetAccounts(ctx context.Context, accessToken string) (AccountsR
 	return out, nil
 }
 
-func (c *Client) GetPrices(ctx context.Context, symbols string) (PricesResponse, error) {
+func (c *Client) GetPrices(ctx context.Context, accessToken string, symbols string) (PricesResponse, error) {
 	values := url.Values{}
 	values.Set("symbols", symbols)
 
@@ -246,6 +246,7 @@ func (c *Client) GetPrices(ctx context.Context, symbols string) (PricesResponse,
 		return PricesResponse{}, err
 	}
 	req.Header.Set("Accept", "application/json")
+	req.Header.Set("Authorization", "Bearer "+accessToken)
 
 	var out PricesResponse
 	if err := c.doJSON(req, &out); err != nil {
@@ -254,7 +255,7 @@ func (c *Client) GetPrices(ctx context.Context, symbols string) (PricesResponse,
 	return out, nil
 }
 
-func (c *Client) GetOrderbook(ctx context.Context, symbol string) (OrderbookResponse, error) {
+func (c *Client) GetOrderbook(ctx context.Context, accessToken string, symbol string) (OrderbookResponse, error) {
 	values := url.Values{}
 	values.Set("symbol", symbol)
 
@@ -263,6 +264,7 @@ func (c *Client) GetOrderbook(ctx context.Context, symbol string) (OrderbookResp
 		return OrderbookResponse{}, err
 	}
 	req.Header.Set("Accept", "application/json")
+	req.Header.Set("Authorization", "Bearer "+accessToken)
 
 	var out OrderbookResponse
 	if err := c.doJSON(req, &out); err != nil {
@@ -271,7 +273,7 @@ func (c *Client) GetOrderbook(ctx context.Context, symbol string) (OrderbookResp
 	return out, nil
 }
 
-func (c *Client) GetTrades(ctx context.Context, symbol string, count int) (TradesResponse, error) {
+func (c *Client) GetTrades(ctx context.Context, accessToken string, symbol string, count int) (TradesResponse, error) {
 	values := url.Values{}
 	values.Set("symbol", symbol)
 	if count > 0 {
@@ -283,6 +285,7 @@ func (c *Client) GetTrades(ctx context.Context, symbol string, count int) (Trade
 		return TradesResponse{}, err
 	}
 	req.Header.Set("Accept", "application/json")
+	req.Header.Set("Authorization", "Bearer "+accessToken)
 
 	var out TradesResponse
 	if err := c.doJSON(req, &out); err != nil {
@@ -291,7 +294,7 @@ func (c *Client) GetTrades(ctx context.Context, symbol string, count int) (Trade
 	return out, nil
 }
 
-func (c *Client) GetStocks(ctx context.Context, symbols string) (StocksResponse, error) {
+func (c *Client) GetStocks(ctx context.Context, accessToken string, symbols string) (StocksResponse, error) {
 	values := url.Values{}
 	values.Set("symbols", symbols)
 
@@ -300,6 +303,7 @@ func (c *Client) GetStocks(ctx context.Context, symbols string) (StocksResponse,
 		return StocksResponse{}, err
 	}
 	req.Header.Set("Accept", "application/json")
+	req.Header.Set("Authorization", "Bearer "+accessToken)
 
 	var out StocksResponse
 	if err := c.doJSON(req, &out); err != nil {
@@ -308,12 +312,13 @@ func (c *Client) GetStocks(ctx context.Context, symbols string) (StocksResponse,
 	return out, nil
 }
 
-func (c *Client) GetStockWarnings(ctx context.Context, symbol string) (StockWarningsResponse, error) {
+func (c *Client) GetStockWarnings(ctx context.Context, accessToken string, symbol string) (StockWarningsResponse, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+"/api/v1/stocks/"+url.PathEscape(symbol)+"/warnings", nil)
 	if err != nil {
 		return StockWarningsResponse{}, err
 	}
 	req.Header.Set("Accept", "application/json")
+	req.Header.Set("Authorization", "Bearer "+accessToken)
 
 	var out StockWarningsResponse
 	if err := c.doJSON(req, &out); err != nil {
@@ -322,7 +327,7 @@ func (c *Client) GetStockWarnings(ctx context.Context, symbol string) (StockWarn
 	return out, nil
 }
 
-func (c *Client) GetPriceLimit(ctx context.Context, symbol string) (PriceLimitResponse, error) {
+func (c *Client) GetPriceLimit(ctx context.Context, accessToken string, symbol string) (PriceLimitResponse, error) {
 	values := url.Values{}
 	values.Set("symbol", symbol)
 
@@ -331,6 +336,7 @@ func (c *Client) GetPriceLimit(ctx context.Context, symbol string) (PriceLimitRe
 		return PriceLimitResponse{}, err
 	}
 	req.Header.Set("Accept", "application/json")
+	req.Header.Set("Authorization", "Bearer "+accessToken)
 
 	var out PriceLimitResponse
 	if err := c.doJSON(req, &out); err != nil {
@@ -339,7 +345,7 @@ func (c *Client) GetPriceLimit(ctx context.Context, symbol string) (PriceLimitRe
 	return out, nil
 }
 
-func (c *Client) GetCandles(ctx context.Context, params CandleParams) (CandlesResponse, error) {
+func (c *Client) GetCandles(ctx context.Context, accessToken string, params CandleParams) (CandlesResponse, error) {
 	values := url.Values{}
 	values.Set("symbol", params.Symbol)
 	values.Set("interval", params.Interval)
@@ -358,6 +364,7 @@ func (c *Client) GetCandles(ctx context.Context, params CandleParams) (CandlesRe
 		return CandlesResponse{}, err
 	}
 	req.Header.Set("Accept", "application/json")
+	req.Header.Set("Authorization", "Bearer "+accessToken)
 
 	var out CandlesResponse
 	if err := c.doJSON(req, &out); err != nil {
@@ -366,7 +373,7 @@ func (c *Client) GetCandles(ctx context.Context, params CandleParams) (CandlesRe
 	return out, nil
 }
 
-func (c *Client) GetExchangeRate(ctx context.Context, params ExchangeRateParams) (ExchangeRateResponse, error) {
+func (c *Client) GetExchangeRate(ctx context.Context, accessToken string, params ExchangeRateParams) (ExchangeRateResponse, error) {
 	values := url.Values{}
 	values.Set("baseCurrency", params.BaseCurrency)
 	values.Set("quoteCurrency", params.QuoteCurrency)
@@ -379,6 +386,7 @@ func (c *Client) GetExchangeRate(ctx context.Context, params ExchangeRateParams)
 		return ExchangeRateResponse{}, err
 	}
 	req.Header.Set("Accept", "application/json")
+	req.Header.Set("Authorization", "Bearer "+accessToken)
 
 	var out ExchangeRateResponse
 	if err := c.doJSON(req, &out); err != nil {
@@ -387,7 +395,7 @@ func (c *Client) GetExchangeRate(ctx context.Context, params ExchangeRateParams)
 	return out, nil
 }
 
-func (c *Client) GetMarketCalendar(ctx context.Context, market string, date string) (MarketCalendarResponse, error) {
+func (c *Client) GetMarketCalendar(ctx context.Context, accessToken string, market string, date string) (MarketCalendarResponse, error) {
 	values := url.Values{}
 	if date != "" {
 		values.Set("date", date)
@@ -402,6 +410,7 @@ func (c *Client) GetMarketCalendar(ctx context.Context, market string, date stri
 		return MarketCalendarResponse{}, err
 	}
 	req.Header.Set("Accept", "application/json")
+	req.Header.Set("Authorization", "Bearer "+accessToken)
 
 	var out MarketCalendarResponse
 	if err := c.doJSON(req, &out); err != nil {

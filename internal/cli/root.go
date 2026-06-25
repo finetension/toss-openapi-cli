@@ -45,11 +45,11 @@ type AccountAPI interface {
 }
 
 type MarketDataAPI interface {
-	GetPrices(ctx context.Context, symbols string) (invest.PricesResponse, error)
-	GetOrderbook(ctx context.Context, symbol string) (invest.OrderbookResponse, error)
-	GetTrades(ctx context.Context, symbol string, count int) (invest.TradesResponse, error)
-	GetPriceLimit(ctx context.Context, symbol string) (invest.PriceLimitResponse, error)
-	GetCandles(ctx context.Context, params invest.CandleParams) (invest.CandlesResponse, error)
+	GetPrices(ctx context.Context, accessToken string, symbols string) (invest.PricesResponse, error)
+	GetOrderbook(ctx context.Context, accessToken string, symbol string) (invest.OrderbookResponse, error)
+	GetTrades(ctx context.Context, accessToken string, symbol string, count int) (invest.TradesResponse, error)
+	GetPriceLimit(ctx context.Context, accessToken string, symbol string) (invest.PriceLimitResponse, error)
+	GetCandles(ctx context.Context, accessToken string, params invest.CandleParams) (invest.CandlesResponse, error)
 }
 
 type AssetAPI interface {
@@ -57,13 +57,13 @@ type AssetAPI interface {
 }
 
 type StockInfoAPI interface {
-	GetStocks(ctx context.Context, symbols string) (invest.StocksResponse, error)
-	GetStockWarnings(ctx context.Context, symbol string) (invest.StockWarningsResponse, error)
+	GetStocks(ctx context.Context, accessToken string, symbols string) (invest.StocksResponse, error)
+	GetStockWarnings(ctx context.Context, accessToken string, symbol string) (invest.StockWarningsResponse, error)
 }
 
 type MarketInfoAPI interface {
-	GetExchangeRate(ctx context.Context, params invest.ExchangeRateParams) (invest.ExchangeRateResponse, error)
-	GetMarketCalendar(ctx context.Context, market string, date string) (invest.MarketCalendarResponse, error)
+	GetExchangeRate(ctx context.Context, accessToken string, params invest.ExchangeRateParams) (invest.ExchangeRateResponse, error)
+	GetMarketCalendar(ctx context.Context, accessToken string, market string, date string) (invest.MarketCalendarResponse, error)
 }
 
 type OrderInfoAPI interface {
@@ -291,11 +291,15 @@ func newInvestMarketDataOrderbookCommand(deps Dependencies) *cobra.Command {
 			return nil
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
+			accessToken, err := accessTokenForInvest(context.Background(), deps)
+			if err != nil {
+				return err
+			}
 			marketData := deps.MarketData
 			if marketData == nil {
 				marketData = invest.NewClient("", nil)
 			}
-			orderbook, err := marketData.GetOrderbook(context.Background(), strings.TrimSpace(symbol))
+			orderbook, err := marketData.GetOrderbook(context.Background(), accessToken, strings.TrimSpace(symbol))
 			if err != nil {
 				return err
 			}
@@ -325,11 +329,15 @@ func newInvestMarketDataPricesCommand(deps Dependencies) *cobra.Command {
 			return nil
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
+			accessToken, err := accessTokenForInvest(context.Background(), deps)
+			if err != nil {
+				return err
+			}
 			marketData := deps.MarketData
 			if marketData == nil {
 				marketData = invest.NewClient("", nil)
 			}
-			prices, err := marketData.GetPrices(context.Background(), strings.TrimSpace(symbols))
+			prices, err := marketData.GetPrices(context.Background(), accessToken, strings.TrimSpace(symbols))
 			if err != nil {
 				return err
 			}
@@ -360,11 +368,15 @@ func newInvestMarketDataTradesCommand(deps Dependencies) *cobra.Command {
 			return nil
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
+			accessToken, err := accessTokenForInvest(context.Background(), deps)
+			if err != nil {
+				return err
+			}
 			marketData := deps.MarketData
 			if marketData == nil {
 				marketData = invest.NewClient("", nil)
 			}
-			trades, err := marketData.GetTrades(context.Background(), strings.TrimSpace(symbol), count)
+			trades, err := marketData.GetTrades(context.Background(), accessToken, strings.TrimSpace(symbol), count)
 			if err != nil {
 				return err
 			}
@@ -395,11 +407,15 @@ func newInvestMarketDataPriceLimitsCommand(deps Dependencies) *cobra.Command {
 			return nil
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
+			accessToken, err := accessTokenForInvest(context.Background(), deps)
+			if err != nil {
+				return err
+			}
 			marketData := deps.MarketData
 			if marketData == nil {
 				marketData = invest.NewClient("", nil)
 			}
-			limits, err := marketData.GetPriceLimit(context.Background(), strings.TrimSpace(symbol))
+			limits, err := marketData.GetPriceLimit(context.Background(), accessToken, strings.TrimSpace(symbol))
 			if err != nil {
 				return err
 			}
@@ -436,6 +452,10 @@ func newInvestMarketDataCandlesCommand(deps Dependencies) *cobra.Command {
 			return nil
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
+			accessToken, err := accessTokenForInvest(context.Background(), deps)
+			if err != nil {
+				return err
+			}
 			marketData := deps.MarketData
 			if marketData == nil {
 				marketData = invest.NewClient("", nil)
@@ -449,7 +469,7 @@ func newInvestMarketDataCandlesCommand(deps Dependencies) *cobra.Command {
 			if cmd.Flags().Changed("adjusted") {
 				params.Adjusted = &adjusted
 			}
-			candles, err := marketData.GetCandles(context.Background(), params)
+			candles, err := marketData.GetCandles(context.Background(), accessToken, params)
 			if err != nil {
 				return err
 			}
@@ -498,11 +518,15 @@ func newInvestMarketInfoExchangeRateCommand(deps Dependencies) *cobra.Command {
 			return nil
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
+			accessToken, err := accessTokenForInvest(context.Background(), deps)
+			if err != nil {
+				return err
+			}
 			marketInfo := deps.MarketInfo
 			if marketInfo == nil {
 				marketInfo = invest.NewClient("", nil)
 			}
-			rate, err := marketInfo.GetExchangeRate(context.Background(), invest.ExchangeRateParams{
+			rate, err := marketInfo.GetExchangeRate(context.Background(), accessToken, invest.ExchangeRateParams{
 				BaseCurrency:  strings.ToUpper(strings.TrimSpace(baseCurrency)),
 				QuoteCurrency: strings.ToUpper(strings.TrimSpace(quoteCurrency)),
 				DateTime:      strings.TrimSpace(dateTime),
@@ -545,11 +569,15 @@ func newInvestMarketInfoCalendarMarketCommand(deps Dependencies, use string, mar
 			return nil
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
+			accessToken, err := accessTokenForInvest(context.Background(), deps)
+			if err != nil {
+				return err
+			}
 			marketInfo := deps.MarketInfo
 			if marketInfo == nil {
 				marketInfo = invest.NewClient("", nil)
 			}
-			calendar, err := marketInfo.GetMarketCalendar(context.Background(), market, strings.TrimSpace(date))
+			calendar, err := marketInfo.GetMarketCalendar(context.Background(), accessToken, market, strings.TrimSpace(date))
 			if err != nil {
 				return err
 			}
@@ -589,11 +617,15 @@ func newInvestStockInfoStocksCommand(deps Dependencies) *cobra.Command {
 			return nil
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
+			accessToken, err := accessTokenForInvest(context.Background(), deps)
+			if err != nil {
+				return err
+			}
 			stockInfo := deps.StockInfo
 			if stockInfo == nil {
 				stockInfo = invest.NewClient("", nil)
 			}
-			stocks, err := stockInfo.GetStocks(context.Background(), strings.TrimSpace(symbols))
+			stocks, err := stockInfo.GetStocks(context.Background(), accessToken, strings.TrimSpace(symbols))
 			if err != nil {
 				return err
 			}
@@ -621,11 +653,15 @@ func newInvestStockInfoWarningsCommand(deps Dependencies) *cobra.Command {
 			return nil
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
+			accessToken, err := accessTokenForInvest(context.Background(), deps)
+			if err != nil {
+				return err
+			}
 			stockInfo := deps.StockInfo
 			if stockInfo == nil {
 				stockInfo = invest.NewClient("", nil)
 			}
-			warnings, err := stockInfo.GetStockWarnings(context.Background(), strings.TrimSpace(args[0]))
+			warnings, err := stockInfo.GetStockWarnings(context.Background(), accessToken, strings.TrimSpace(args[0]))
 			if err != nil {
 				return err
 			}
