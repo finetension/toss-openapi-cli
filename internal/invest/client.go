@@ -68,6 +68,22 @@ type Price struct {
 	Currency  string `json:"currency"`
 }
 
+type OrderbookResponse struct {
+	Result json.RawMessage `json:"result"`
+}
+
+type TradesResponse struct {
+	Result json.RawMessage `json:"result"`
+}
+
+type StocksResponse struct {
+	Result json.RawMessage `json:"result"`
+}
+
+type StockWarningsResponse struct {
+	Result json.RawMessage `json:"result"`
+}
+
 type BuyingPowerResponse struct {
 	Result BuyingPower `json:"result"`
 }
@@ -204,6 +220,74 @@ func (c *Client) GetPrices(ctx context.Context, symbols string) (PricesResponse,
 	var out PricesResponse
 	if err := c.doJSON(req, &out); err != nil {
 		return PricesResponse{}, err
+	}
+	return out, nil
+}
+
+func (c *Client) GetOrderbook(ctx context.Context, symbol string) (OrderbookResponse, error) {
+	values := url.Values{}
+	values.Set("symbol", symbol)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+"/api/v1/orderbook?"+values.Encode(), nil)
+	if err != nil {
+		return OrderbookResponse{}, err
+	}
+	req.Header.Set("Accept", "application/json")
+
+	var out OrderbookResponse
+	if err := c.doJSON(req, &out); err != nil {
+		return OrderbookResponse{}, err
+	}
+	return out, nil
+}
+
+func (c *Client) GetTrades(ctx context.Context, symbol string, count int) (TradesResponse, error) {
+	values := url.Values{}
+	values.Set("symbol", symbol)
+	if count > 0 {
+		values.Set("count", strconv.Itoa(count))
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+"/api/v1/trades?"+values.Encode(), nil)
+	if err != nil {
+		return TradesResponse{}, err
+	}
+	req.Header.Set("Accept", "application/json")
+
+	var out TradesResponse
+	if err := c.doJSON(req, &out); err != nil {
+		return TradesResponse{}, err
+	}
+	return out, nil
+}
+
+func (c *Client) GetStocks(ctx context.Context, symbols string) (StocksResponse, error) {
+	values := url.Values{}
+	values.Set("symbols", symbols)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+"/api/v1/stocks?"+values.Encode(), nil)
+	if err != nil {
+		return StocksResponse{}, err
+	}
+	req.Header.Set("Accept", "application/json")
+
+	var out StocksResponse
+	if err := c.doJSON(req, &out); err != nil {
+		return StocksResponse{}, err
+	}
+	return out, nil
+}
+
+func (c *Client) GetStockWarnings(ctx context.Context, symbol string) (StockWarningsResponse, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+"/api/v1/stocks/"+url.PathEscape(symbol)+"/warnings", nil)
+	if err != nil {
+		return StockWarningsResponse{}, err
+	}
+	req.Header.Set("Accept", "application/json")
+
+	var out StockWarningsResponse
+	if err := c.doJSON(req, &out); err != nil {
+		return StockWarningsResponse{}, err
 	}
 	return out, nil
 }

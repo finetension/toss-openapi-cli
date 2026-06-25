@@ -403,6 +403,126 @@ func TestInvestMarketDataPricesRequiresSymbols(t *testing.T) {
 	}
 }
 
+func TestInvestMarketDataOrderbookOutputsOrderbook(t *testing.T) {
+	marketData := &fakeMarketDataAPI{
+		orderbookResponse: invest.OrderbookResponse{
+			Result: json.RawMessage(`{"currency":"USD","asks":[],"bids":[]}`),
+		},
+	}
+
+	stdout, stderr, exitCode := ExecuteForTestWithDeps(Dependencies{
+		MarketData: marketData,
+	}, "invest", "market-data", "orderbook", "--symbol", "AAPL")
+
+	if exitCode != apperr.ExitSuccess {
+		t.Fatalf("exitCode = %d, want %d; stdout=%s stderr=%s", exitCode, apperr.ExitSuccess, stdout, stderr)
+	}
+	if stderr != "" {
+		t.Fatalf("stderr = %q, want empty", stderr)
+	}
+	if marketData.symbol != "AAPL" {
+		t.Fatalf("symbol = %q", marketData.symbol)
+	}
+
+	var got invest.OrderbookResponse
+	if err := json.Unmarshal([]byte(stdout), &got); err != nil {
+		t.Fatalf("stdout is not valid JSON: %v\n%s", err, stdout)
+	}
+	if compactJSON(t, got.Result) != compactJSON(t, marketData.orderbookResponse.Result) {
+		t.Fatalf("result = %s", got.Result)
+	}
+}
+
+func TestInvestMarketDataTradesOutputsTrades(t *testing.T) {
+	marketData := &fakeMarketDataAPI{
+		tradesResponse: invest.TradesResponse{
+			Result: json.RawMessage(`[{"price":"185.70","volume":"15"}]`),
+		},
+	}
+
+	stdout, stderr, exitCode := ExecuteForTestWithDeps(Dependencies{
+		MarketData: marketData,
+	}, "invest", "market-data", "trades", "--symbol", "AAPL", "--count", "10")
+
+	if exitCode != apperr.ExitSuccess {
+		t.Fatalf("exitCode = %d, want %d; stdout=%s stderr=%s", exitCode, apperr.ExitSuccess, stdout, stderr)
+	}
+	if stderr != "" {
+		t.Fatalf("stderr = %q, want empty", stderr)
+	}
+	if marketData.symbol != "AAPL" || marketData.count != 10 {
+		t.Fatalf("marketData = %+v", marketData)
+	}
+
+	var got invest.TradesResponse
+	if err := json.Unmarshal([]byte(stdout), &got); err != nil {
+		t.Fatalf("stdout is not valid JSON: %v\n%s", err, stdout)
+	}
+	if compactJSON(t, got.Result) != compactJSON(t, marketData.tradesResponse.Result) {
+		t.Fatalf("result = %s", got.Result)
+	}
+}
+
+func TestInvestStockInfoStocksOutputsStocks(t *testing.T) {
+	stockInfo := &fakeStockInfoAPI{
+		stocksResponse: invest.StocksResponse{
+			Result: json.RawMessage(`[{"symbol":"AAPL","name":"Apple"}]`),
+		},
+	}
+
+	stdout, stderr, exitCode := ExecuteForTestWithDeps(Dependencies{
+		StockInfo: stockInfo,
+	}, "invest", "stock-info", "stocks", "--symbols", "AAPL,MSFT")
+
+	if exitCode != apperr.ExitSuccess {
+		t.Fatalf("exitCode = %d, want %d; stdout=%s stderr=%s", exitCode, apperr.ExitSuccess, stdout, stderr)
+	}
+	if stderr != "" {
+		t.Fatalf("stderr = %q, want empty", stderr)
+	}
+	if stockInfo.symbols != "AAPL,MSFT" {
+		t.Fatalf("symbols = %q", stockInfo.symbols)
+	}
+
+	var got invest.StocksResponse
+	if err := json.Unmarshal([]byte(stdout), &got); err != nil {
+		t.Fatalf("stdout is not valid JSON: %v\n%s", err, stdout)
+	}
+	if compactJSON(t, got.Result) != compactJSON(t, stockInfo.stocksResponse.Result) {
+		t.Fatalf("result = %s", got.Result)
+	}
+}
+
+func TestInvestStockInfoWarningsOutputsWarnings(t *testing.T) {
+	stockInfo := &fakeStockInfoAPI{
+		warningsResponse: invest.StockWarningsResponse{
+			Result: json.RawMessage(`[{"warningType":"OVERHEATED"}]`),
+		},
+	}
+
+	stdout, stderr, exitCode := ExecuteForTestWithDeps(Dependencies{
+		StockInfo: stockInfo,
+	}, "invest", "stock-info", "warnings", "AAPL")
+
+	if exitCode != apperr.ExitSuccess {
+		t.Fatalf("exitCode = %d, want %d; stdout=%s stderr=%s", exitCode, apperr.ExitSuccess, stdout, stderr)
+	}
+	if stderr != "" {
+		t.Fatalf("stderr = %q, want empty", stderr)
+	}
+	if stockInfo.symbol != "AAPL" {
+		t.Fatalf("symbol = %q", stockInfo.symbol)
+	}
+
+	var got invest.StockWarningsResponse
+	if err := json.Unmarshal([]byte(stdout), &got); err != nil {
+		t.Fatalf("stdout is not valid JSON: %v\n%s", err, stdout)
+	}
+	if compactJSON(t, got.Result) != compactJSON(t, stockInfo.warningsResponse.Result) {
+		t.Fatalf("result = %s", got.Result)
+	}
+}
+
 func TestInvestOrderInfoBuyingPowerOutputsBuyingPower(t *testing.T) {
 	orderInfo := &fakeOrderInfoAPI{
 		buyingPowerResponse: invest.BuyingPowerResponse{
@@ -1026,14 +1146,47 @@ func (f *fakeAccountAPI) GetAccounts(ctx context.Context, accessToken string) (i
 }
 
 type fakeMarketDataAPI struct {
-	symbols  string
-	response invest.PricesResponse
-	err      error
+	symbol            string
+	symbols           string
+	count             int
+	response          invest.PricesResponse
+	orderbookResponse invest.OrderbookResponse
+	tradesResponse    invest.TradesResponse
+	err               error
 }
 
 func (f *fakeMarketDataAPI) GetPrices(ctx context.Context, symbols string) (invest.PricesResponse, error) {
 	f.symbols = symbols
 	return f.response, f.err
+}
+
+func (f *fakeMarketDataAPI) GetOrderbook(ctx context.Context, symbol string) (invest.OrderbookResponse, error) {
+	f.symbol = symbol
+	return f.orderbookResponse, f.err
+}
+
+func (f *fakeMarketDataAPI) GetTrades(ctx context.Context, symbol string, count int) (invest.TradesResponse, error) {
+	f.symbol = symbol
+	f.count = count
+	return f.tradesResponse, f.err
+}
+
+type fakeStockInfoAPI struct {
+	symbol           string
+	symbols          string
+	stocksResponse   invest.StocksResponse
+	warningsResponse invest.StockWarningsResponse
+	err              error
+}
+
+func (f *fakeStockInfoAPI) GetStocks(ctx context.Context, symbols string) (invest.StocksResponse, error) {
+	f.symbols = symbols
+	return f.stocksResponse, f.err
+}
+
+func (f *fakeStockInfoAPI) GetStockWarnings(ctx context.Context, symbol string) (invest.StockWarningsResponse, error) {
+	f.symbol = symbol
+	return f.warningsResponse, f.err
 }
 
 type fakeAssetAPI struct {

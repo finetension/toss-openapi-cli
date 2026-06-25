@@ -703,3 +703,160 @@ func TestGetCommissions(t *testing.T) {
 		t.Fatalf("result = %s", got.Result)
 	}
 }
+
+func TestGetOrderbook(t *testing.T) {
+	var gotMethod string
+	var gotPath string
+	var gotSymbol string
+	var gotAccept string
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotMethod = r.Method
+		gotPath = r.URL.Path
+		gotSymbol = r.URL.Query().Get("symbol")
+		gotAccept = r.Header.Get("Accept")
+
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"result":{"currency":"USD","asks":[],"bids":[]}}`))
+	}))
+	defer server.Close()
+
+	client := NewClient(server.URL, server.Client())
+	got, err := client.GetOrderbook(context.Background(), "AAPL")
+	if err != nil {
+		t.Fatalf("GetOrderbook err = %v", err)
+	}
+
+	if gotMethod != http.MethodGet {
+		t.Fatalf("method = %q, want %q", gotMethod, http.MethodGet)
+	}
+	if gotPath != "/api/v1/orderbook" {
+		t.Fatalf("path = %q, want %q", gotPath, "/api/v1/orderbook")
+	}
+	if gotSymbol != "AAPL" {
+		t.Fatalf("symbol = %q", gotSymbol)
+	}
+	if gotAccept != "application/json" {
+		t.Fatalf("Accept = %q", gotAccept)
+	}
+	if string(got.Result) != `{"currency":"USD","asks":[],"bids":[]}` {
+		t.Fatalf("result = %s", got.Result)
+	}
+}
+
+func TestGetTrades(t *testing.T) {
+	var gotMethod string
+	var gotPath string
+	var gotSymbol string
+	var gotCount string
+	var gotAccept string
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotMethod = r.Method
+		gotPath = r.URL.Path
+		gotSymbol = r.URL.Query().Get("symbol")
+		gotCount = r.URL.Query().Get("count")
+		gotAccept = r.Header.Get("Accept")
+
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"result":[{"price":"185.70","volume":"15"}]}`))
+	}))
+	defer server.Close()
+
+	client := NewClient(server.URL, server.Client())
+	got, err := client.GetTrades(context.Background(), "AAPL", 10)
+	if err != nil {
+		t.Fatalf("GetTrades err = %v", err)
+	}
+
+	if gotMethod != http.MethodGet {
+		t.Fatalf("method = %q, want %q", gotMethod, http.MethodGet)
+	}
+	if gotPath != "/api/v1/trades" {
+		t.Fatalf("path = %q, want %q", gotPath, "/api/v1/trades")
+	}
+	if gotSymbol != "AAPL" || gotCount != "10" {
+		t.Fatalf("symbol=%q count=%q", gotSymbol, gotCount)
+	}
+	if gotAccept != "application/json" {
+		t.Fatalf("Accept = %q", gotAccept)
+	}
+	if string(got.Result) != `[{"price":"185.70","volume":"15"}]` {
+		t.Fatalf("result = %s", got.Result)
+	}
+}
+
+func TestGetStocks(t *testing.T) {
+	var gotMethod string
+	var gotPath string
+	var gotSymbols string
+	var gotAccept string
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotMethod = r.Method
+		gotPath = r.URL.Path
+		gotSymbols = r.URL.Query().Get("symbols")
+		gotAccept = r.Header.Get("Accept")
+
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"result":[{"symbol":"AAPL","name":"Apple"}]}`))
+	}))
+	defer server.Close()
+
+	client := NewClient(server.URL, server.Client())
+	got, err := client.GetStocks(context.Background(), "AAPL,MSFT")
+	if err != nil {
+		t.Fatalf("GetStocks err = %v", err)
+	}
+
+	if gotMethod != http.MethodGet {
+		t.Fatalf("method = %q, want %q", gotMethod, http.MethodGet)
+	}
+	if gotPath != "/api/v1/stocks" {
+		t.Fatalf("path = %q, want %q", gotPath, "/api/v1/stocks")
+	}
+	if gotSymbols != "AAPL,MSFT" {
+		t.Fatalf("symbols = %q", gotSymbols)
+	}
+	if gotAccept != "application/json" {
+		t.Fatalf("Accept = %q", gotAccept)
+	}
+	if string(got.Result) != `[{"symbol":"AAPL","name":"Apple"}]` {
+		t.Fatalf("result = %s", got.Result)
+	}
+}
+
+func TestGetStockWarnings(t *testing.T) {
+	var gotMethod string
+	var gotPath string
+	var gotAccept string
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotMethod = r.Method
+		gotPath = r.URL.EscapedPath()
+		gotAccept = r.Header.Get("Accept")
+
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"result":[{"warningType":"OVERHEATED"}]}`))
+	}))
+	defer server.Close()
+
+	client := NewClient(server.URL, server.Client())
+	got, err := client.GetStockWarnings(context.Background(), "AAPL/TEST")
+	if err != nil {
+		t.Fatalf("GetStockWarnings err = %v", err)
+	}
+
+	if gotMethod != http.MethodGet {
+		t.Fatalf("method = %q, want %q", gotMethod, http.MethodGet)
+	}
+	if gotPath != "/api/v1/stocks/AAPL%2FTEST/warnings" {
+		t.Fatalf("path = %q", gotPath)
+	}
+	if gotAccept != "application/json" {
+		t.Fatalf("Accept = %q", gotAccept)
+	}
+	if string(got.Result) != `[{"warningType":"OVERHEATED"}]` {
+		t.Fatalf("result = %s", got.Result)
+	}
+}

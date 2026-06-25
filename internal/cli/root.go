@@ -33,6 +33,7 @@ type Dependencies struct {
 	AccountAPI   AccountAPI
 	MarketData   MarketDataAPI
 	AssetAPI     AssetAPI
+	StockInfo    StockInfoAPI
 	OrderInfo    OrderInfoAPI
 	OrderHistory OrderHistoryAPI
 	OrderAPI     OrderAPI
@@ -44,10 +45,17 @@ type AccountAPI interface {
 
 type MarketDataAPI interface {
 	GetPrices(ctx context.Context, symbols string) (invest.PricesResponse, error)
+	GetOrderbook(ctx context.Context, symbol string) (invest.OrderbookResponse, error)
+	GetTrades(ctx context.Context, symbol string, count int) (invest.TradesResponse, error)
 }
 
 type AssetAPI interface {
 	GetHoldings(ctx context.Context, accessToken string, accountSeq int64, symbol string) (invest.HoldingsResponse, error)
+}
+
+type StockInfoAPI interface {
+	GetStocks(ctx context.Context, symbols string) (invest.StocksResponse, error)
+	GetStockWarnings(ctx context.Context, symbol string) (invest.StockWarningsResponse, error)
 }
 
 type OrderInfoAPI interface {
@@ -151,6 +159,7 @@ func newInvestCommand(deps Dependencies) *cobra.Command {
 	cmd.AddCommand(newInvestOrderInfoCommand(deps))
 	cmd.AddCommand(newInvestOrderHistoryCommand(deps))
 	cmd.AddCommand(newInvestOrderCommand(deps))
+	cmd.AddCommand(newInvestStockInfoCommand(deps))
 	return cmd
 }
 
@@ -249,7 +258,43 @@ func newInvestMarketDataCommand(deps Dependencies) *cobra.Command {
 		Use:   "market-data",
 		Short: "Read Toss Invest market data.",
 	}
+	cmd.AddCommand(newInvestMarketDataOrderbookCommand(deps))
 	cmd.AddCommand(newInvestMarketDataPricesCommand(deps))
+	cmd.AddCommand(newInvestMarketDataTradesCommand(deps))
+	return cmd
+}
+
+func newInvestMarketDataOrderbookCommand(deps Dependencies) *cobra.Command {
+	var symbol string
+
+	cmd := &cobra.Command{
+		Use:   "orderbook",
+		Short: "Get orderbook for a symbol.",
+		Args: func(cmd *cobra.Command, args []string) error {
+			if len(args) > 0 {
+				return apperr.Usage("market-data orderbook does not accept arguments")
+			}
+			if strings.TrimSpace(symbol) == "" {
+				return apperr.Usage("--symbol is required")
+			}
+			return nil
+		},
+		RunE: func(cmd *cobra.Command, args []string) error {
+			marketData := deps.MarketData
+			if marketData == nil {
+				marketData = invest.NewClient("", nil)
+			}
+			orderbook, err := marketData.GetOrderbook(context.Background(), strings.TrimSpace(symbol))
+			if err != nil {
+				return err
+			}
+			if err := output.WriteJSON(cmd.OutOrStdout(), orderbook); err != nil {
+				return apperr.Unexpected(err)
+			}
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&symbol, "symbol", "", "Toss Invest symbol.")
 	return cmd
 }
 
@@ -285,6 +330,116 @@ func newInvestMarketDataPricesCommand(deps Dependencies) *cobra.Command {
 	}
 	cmd.Flags().StringVar(&symbols, "symbols", "", "Comma-separated Toss Invest symbols.")
 	return cmd
+}
+
+func newInvestMarketDataTradesCommand(deps Dependencies) *cobra.Command {
+	var symbol string
+	var count int
+
+	cmd := &cobra.Command{
+		Use:   "trades",
+		Short: "Get recent trades for a symbol.",
+		Args: func(cmd *cobra.Command, args []string) error {
+			if len(args) > 0 {
+				return apperr.Usage("market-data trades does not accept arguments")
+			}
+			if strings.TrimSpace(symbol) == "" {
+				return apperr.Usage("--symbol is required")
+			}
+			return nil
+		},
+		RunE: func(cmd *cobra.Command, args []string) error {
+			marketData := deps.MarketData
+			if marketData == nil {
+				marketData = invest.NewClient("", nil)
+			}
+			trades, err := marketData.GetTrades(context.Background(), strings.TrimSpace(symbol), count)
+			if err != nil {
+				return err
+			}
+			if err := output.WriteJSON(cmd.OutOrStdout(), trades); err != nil {
+				return apperr.Unexpected(err)
+			}
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&symbol, "symbol", "", "Toss Invest symbol.")
+	cmd.Flags().IntVar(&count, "count", 0, "Trade count.")
+	return cmd
+}
+
+func newInvestStockInfoCommand(deps Dependencies) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "stock-info",
+		Short: "Read Toss Invest stock information.",
+	}
+	cmd.AddCommand(newInvestStockInfoStocksCommand(deps))
+	cmd.AddCommand(newInvestStockInfoWarningsCommand(deps))
+	return cmd
+}
+
+func newInvestStockInfoStocksCommand(deps Dependencies) *cobra.Command {
+	var symbols string
+
+	cmd := &cobra.Command{
+		Use:   "stocks",
+		Short: "Get stock information.",
+		Args: func(cmd *cobra.Command, args []string) error {
+			if len(args) > 0 {
+				return apperr.Usage("stock-info stocks does not accept arguments")
+			}
+			if strings.TrimSpace(symbols) == "" {
+				return apperr.Usage("--symbols is required")
+			}
+			return nil
+		},
+		RunE: func(cmd *cobra.Command, args []string) error {
+			stockInfo := deps.StockInfo
+			if stockInfo == nil {
+				stockInfo = invest.NewClient("", nil)
+			}
+			stocks, err := stockInfo.GetStocks(context.Background(), strings.TrimSpace(symbols))
+			if err != nil {
+				return err
+			}
+			if err := output.WriteJSON(cmd.OutOrStdout(), stocks); err != nil {
+				return apperr.Unexpected(err)
+			}
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&symbols, "symbols", "", "Comma-separated Toss Invest symbols.")
+	return cmd
+}
+
+func newInvestStockInfoWarningsCommand(deps Dependencies) *cobra.Command {
+	return &cobra.Command{
+		Use:   "warnings <symbol>",
+		Short: "Get stock warnings.",
+		Args: func(cmd *cobra.Command, args []string) error {
+			if len(args) != 1 {
+				return apperr.Usage("stock-info warnings requires exactly one symbol")
+			}
+			if strings.TrimSpace(args[0]) == "" {
+				return apperr.Usage("symbol is required")
+			}
+			return nil
+		},
+		RunE: func(cmd *cobra.Command, args []string) error {
+			stockInfo := deps.StockInfo
+			if stockInfo == nil {
+				stockInfo = invest.NewClient("", nil)
+			}
+			warnings, err := stockInfo.GetStockWarnings(context.Background(), strings.TrimSpace(args[0]))
+			if err != nil {
+				return err
+			}
+			if err := output.WriteJSON(cmd.OutOrStdout(), warnings); err != nil {
+				return apperr.Unexpected(err)
+			}
+			return nil
+		},
+	}
 }
 
 func newInvestOrderInfoCommand(deps Dependencies) *cobra.Command {
