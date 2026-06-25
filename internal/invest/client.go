@@ -102,6 +102,22 @@ type OrderResponse struct {
 	Result json.RawMessage `json:"result"`
 }
 
+type OrderCreateRequest struct {
+	ClientOrderID         string `json:"clientOrderId,omitempty"`
+	Symbol                string `json:"symbol"`
+	Side                  string `json:"side"`
+	OrderType             string `json:"orderType"`
+	TimeInForce           string `json:"timeInForce,omitempty"`
+	Quantity              string `json:"quantity,omitempty"`
+	Price                 string `json:"price,omitempty"`
+	OrderAmount           string `json:"orderAmount,omitempty"`
+	ConfirmHighValueOrder bool   `json:"confirmHighValueOrder,omitempty"`
+}
+
+type OrderMutationResponse struct {
+	Result json.RawMessage `json:"result"`
+}
+
 type APIError struct {
 	StatusCode      int
 	Code            string
@@ -261,6 +277,44 @@ func (c *Client) GetOrder(ctx context.Context, accessToken string, accountSeq in
 	var out OrderResponse
 	if err := c.doJSON(req, &out); err != nil {
 		return OrderResponse{}, err
+	}
+	return out, nil
+}
+
+func (c *Client) CreateOrder(ctx context.Context, accessToken string, accountSeq int64, input OrderCreateRequest) (OrderMutationResponse, error) {
+	body, err := json.Marshal(input)
+	if err != nil {
+		return OrderMutationResponse{}, err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+"/api/v1/orders", bytes.NewReader(body))
+	if err != nil {
+		return OrderMutationResponse{}, err
+	}
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("Authorization", "Bearer "+accessToken)
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Tossinvest-Account", strconv.FormatInt(accountSeq, 10))
+
+	var out OrderMutationResponse
+	if err := c.doJSON(req, &out); err != nil {
+		return OrderMutationResponse{}, err
+	}
+	return out, nil
+}
+
+func (c *Client) CancelOrder(ctx context.Context, accessToken string, accountSeq int64, orderID string) (OrderMutationResponse, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+"/api/v1/orders/"+url.PathEscape(orderID)+"/cancel", strings.NewReader("{}"))
+	if err != nil {
+		return OrderMutationResponse{}, err
+	}
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("Authorization", "Bearer "+accessToken)
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Tossinvest-Account", strconv.FormatInt(accountSeq, 10))
+
+	var out OrderMutationResponse
+	if err := c.doJSON(req, &out); err != nil {
+		return OrderMutationResponse{}, err
 	}
 	return out, nil
 }

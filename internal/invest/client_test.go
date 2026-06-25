@@ -425,3 +425,125 @@ func TestGetOrder(t *testing.T) {
 		t.Fatalf("result = %s", got.Result)
 	}
 }
+
+func TestCreateOrder(t *testing.T) {
+	var gotMethod string
+	var gotPath string
+	var gotContentType string
+	var gotAccept string
+	var gotAuthorization string
+	var gotAccount string
+	var gotBody OrderCreateRequest
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotMethod = r.Method
+		gotPath = r.URL.Path
+		gotContentType = r.Header.Get("Content-Type")
+		gotAccept = r.Header.Get("Accept")
+		gotAuthorization = r.Header.Get("Authorization")
+		gotAccount = r.Header.Get("X-Tossinvest-Account")
+		if err := json.NewDecoder(r.Body).Decode(&gotBody); err != nil {
+			t.Fatalf("Decode body err = %v", err)
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"result":{"orderId":"order-1","clientOrderId":"client-order-1"}}`))
+	}))
+	defer server.Close()
+
+	client := NewClient(server.URL, server.Client())
+	got, err := client.CreateOrder(context.Background(), "access-token", 1, OrderCreateRequest{
+		ClientOrderID: "client-order-1",
+		Symbol:        "AAPL",
+		Side:          "BUY",
+		OrderType:     "LIMIT",
+		TimeInForce:   "DAY",
+		Quantity:      "1",
+		Price:         "185.5",
+	})
+	if err != nil {
+		t.Fatalf("CreateOrder err = %v", err)
+	}
+
+	if gotMethod != http.MethodPost {
+		t.Fatalf("method = %q, want %q", gotMethod, http.MethodPost)
+	}
+	if gotPath != "/api/v1/orders" {
+		t.Fatalf("path = %q, want %q", gotPath, "/api/v1/orders")
+	}
+	if gotContentType != "application/json" {
+		t.Fatalf("Content-Type = %q", gotContentType)
+	}
+	if gotAccept != "application/json" {
+		t.Fatalf("Accept = %q", gotAccept)
+	}
+	if gotAuthorization != "Bearer access-token" {
+		t.Fatalf("Authorization = %q", gotAuthorization)
+	}
+	if gotAccount != "1" {
+		t.Fatalf("X-Tossinvest-Account = %q", gotAccount)
+	}
+	if gotBody.ClientOrderID != "client-order-1" || gotBody.Symbol != "AAPL" || gotBody.Side != "BUY" || gotBody.OrderType != "LIMIT" || gotBody.Quantity != "1" || gotBody.Price != "185.5" {
+		t.Fatalf("body = %+v", gotBody)
+	}
+	if string(got.Result) != `{"orderId":"order-1","clientOrderId":"client-order-1"}` {
+		t.Fatalf("result = %s", got.Result)
+	}
+}
+
+func TestCancelOrder(t *testing.T) {
+	var gotMethod string
+	var gotPath string
+	var gotContentType string
+	var gotAccept string
+	var gotAuthorization string
+	var gotAccount string
+	var gotBody map[string]any
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotMethod = r.Method
+		gotPath = r.URL.EscapedPath()
+		gotContentType = r.Header.Get("Content-Type")
+		gotAccept = r.Header.Get("Accept")
+		gotAuthorization = r.Header.Get("Authorization")
+		gotAccount = r.Header.Get("X-Tossinvest-Account")
+		if err := json.NewDecoder(r.Body).Decode(&gotBody); err != nil {
+			t.Fatalf("Decode body err = %v", err)
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"result":{"orderId":"cancel-order-1"}}`))
+	}))
+	defer server.Close()
+
+	client := NewClient(server.URL, server.Client())
+	got, err := client.CancelOrder(context.Background(), "access-token", 1, "order/id")
+	if err != nil {
+		t.Fatalf("CancelOrder err = %v", err)
+	}
+
+	if gotMethod != http.MethodPost {
+		t.Fatalf("method = %q, want %q", gotMethod, http.MethodPost)
+	}
+	if gotPath != "/api/v1/orders/order%2Fid/cancel" {
+		t.Fatalf("path = %q", gotPath)
+	}
+	if gotContentType != "application/json" {
+		t.Fatalf("Content-Type = %q", gotContentType)
+	}
+	if gotAccept != "application/json" {
+		t.Fatalf("Accept = %q", gotAccept)
+	}
+	if gotAuthorization != "Bearer access-token" {
+		t.Fatalf("Authorization = %q", gotAuthorization)
+	}
+	if gotAccount != "1" {
+		t.Fatalf("X-Tossinvest-Account = %q", gotAccount)
+	}
+	if len(gotBody) != 0 {
+		t.Fatalf("body = %+v", gotBody)
+	}
+	if string(got.Result) != `{"orderId":"cancel-order-1"}` {
+		t.Fatalf("result = %s", got.Result)
+	}
+}
