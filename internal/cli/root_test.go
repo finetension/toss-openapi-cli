@@ -162,6 +162,44 @@ func TestInvestAuthLoginWithFlagsStoresCredentialsAndOutputsStatus(t *testing.T)
 	}
 }
 
+func TestInvestAuthLogoutClearsStoredAuth(t *testing.T) {
+	store := auth.NewMemorySecretStore()
+	if err := auth.StoreCredentials(store, auth.Credentials{ClientID: "client-id", ClientSecret: "client-secret"}); err != nil {
+		t.Fatalf("StoreCredentials err = %v", err)
+	}
+
+	stdout, stderr, exitCode := ExecuteForTestWithDeps(Dependencies{
+		SecretStore: store,
+	}, "invest", "auth", "logout")
+
+	if exitCode != apperr.ExitSuccess {
+		t.Fatalf("exitCode = %d, want %d; stdout=%s stderr=%s", exitCode, apperr.ExitSuccess, stdout, stderr)
+	}
+	if stderr != "" {
+		t.Fatalf("stderr = %q, want empty", stderr)
+	}
+
+	var got struct {
+		Credentials struct {
+			Configured bool   `json:"configured"`
+			Source     string `json:"source"`
+		} `json:"credentials"`
+		Token struct {
+			Configured bool   `json:"configured"`
+			Source     string `json:"source"`
+		} `json:"token"`
+	}
+	if err := json.Unmarshal([]byte(stdout), &got); err != nil {
+		t.Fatalf("stdout is not valid JSON: %v\n%s", err, stdout)
+	}
+	if got.Credentials.Configured || got.Credentials.Source != "missing" {
+		t.Fatalf("credentials = %+v", got.Credentials)
+	}
+	if got.Token.Configured || got.Token.Source != "missing" {
+		t.Fatalf("token = %+v", got.Token)
+	}
+}
+
 type fakeTokenIssuer struct {
 	input    invest.OAuth2TokenRequest
 	response invest.OAuth2TokenResponse

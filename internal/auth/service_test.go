@@ -107,6 +107,40 @@ func TestLoginStoresCredentialsAndToken(t *testing.T) {
 	}
 }
 
+func TestLogoutDeletesCredentialsAndToken(t *testing.T) {
+	store := NewMemorySecretStore()
+	if err := StoreCredentials(store, Credentials{ClientID: "client-id", ClientSecret: "client-secret"}); err != nil {
+		t.Fatalf("StoreCredentials err = %v", err)
+	}
+	if err := StoreToken(store, CachedToken{AccessToken: "token", ExpiresAt: time.Now().Add(time.Hour)}); err != nil {
+		t.Fatalf("StoreToken err = %v", err)
+	}
+
+	service := NewService(store, func(key string) (string, bool) { return "", false })
+	got, err := service.Logout()
+	if err != nil {
+		t.Fatalf("Logout err = %v", err)
+	}
+	if got.Credentials.Configured || got.Credentials.Source != "missing" {
+		t.Fatalf("credentials status = %+v", got.Credentials)
+	}
+	if got.Token.Configured || got.Token.Valid || got.Token.Source != "missing" {
+		t.Fatalf("token status = %+v", got.Token)
+	}
+}
+
+func TestLogoutSucceedsWhenNothingStored(t *testing.T) {
+	service := NewService(NewMemorySecretStore(), func(key string) (string, bool) { return "", false })
+
+	got, err := service.Logout()
+	if err != nil {
+		t.Fatalf("Logout err = %v", err)
+	}
+	if got.Credentials.Configured || got.Token.Configured {
+		t.Fatalf("status = %+v", got)
+	}
+}
+
 type fakeTokenIssuer struct {
 	input    invest.OAuth2TokenRequest
 	response invest.OAuth2TokenResponse

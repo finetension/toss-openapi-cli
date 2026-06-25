@@ -2,6 +2,7 @@ package auth
 
 import (
 	"context"
+	"errors"
 	"os"
 	"time"
 
@@ -54,6 +55,16 @@ func (s *Service) Login(ctx context.Context, issuer TokenIssuer, credentials Cre
 		AccessToken: token.AccessToken,
 		ExpiresAt:   s.now().Add(time.Duration(token.ExpiresIn) * time.Second).UTC(),
 	}); err != nil {
+		return Status{}, err
+	}
+	return s.Status(), nil
+}
+
+func (s *Service) Logout() (Status, error) {
+	if err := s.store.Delete(KeyringService, InvestCredentials); err != nil && !errors.Is(err, ErrSecretNotFound) {
+		return Status{}, err
+	}
+	if err := s.store.Delete(KeyringService, InvestToken); err != nil && !errors.Is(err, ErrSecretNotFound) {
 		return Status{}, err
 	}
 	return s.Status(), nil

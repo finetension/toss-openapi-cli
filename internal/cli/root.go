@@ -118,6 +118,7 @@ func newInvestAuthCommand(deps Dependencies) *cobra.Command {
 		Short: "Manage Toss Invest authentication.",
 	}
 	cmd.AddCommand(newInvestAuthLoginCommand(deps))
+	cmd.AddCommand(newInvestAuthLogoutCommand(deps))
 	cmd.AddCommand(newInvestAuthStatusCommand(deps))
 	return cmd
 }
@@ -158,6 +159,30 @@ func newInvestAuthLoginCommand(deps Dependencies) *cobra.Command {
 	cmd.Flags().StringVar(&clientID, "client-id", "", "Toss Invest client ID.")
 	cmd.Flags().StringVar(&clientSecret, "client-secret", "", "Toss Invest client secret.")
 	return cmd
+}
+
+func newInvestAuthLogoutCommand(deps Dependencies) *cobra.Command {
+	return &cobra.Command{
+		Use:   "logout",
+		Short: "Clear stored Toss Invest credentials and token.",
+		Args: func(cmd *cobra.Command, args []string) error {
+			if len(args) > 0 {
+				return apperr.Usage("auth logout does not accept arguments")
+			}
+			return nil
+		},
+		RunE: func(cmd *cobra.Command, args []string) error {
+			service := auth.NewService(deps.SecretStore, deps.EnvLookup)
+			status, err := service.Logout()
+			if err != nil {
+				return err
+			}
+			if err := output.WriteJSON(cmd.OutOrStdout(), status); err != nil {
+				return apperr.Unexpected(err)
+			}
+			return nil
+		},
+	}
 }
 
 func newInvestAuthStatusCommand(deps Dependencies) *cobra.Command {
