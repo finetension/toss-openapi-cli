@@ -63,6 +63,7 @@ type OrderHistoryAPI interface {
 
 type OrderAPI interface {
 	CreateOrder(ctx context.Context, accessToken string, accountSeq int64, input invest.OrderCreateRequest) (invest.OrderMutationResponse, error)
+	ModifyOrder(ctx context.Context, accessToken string, accountSeq int64, orderID string, input invest.OrderModifyRequest) (invest.OrderMutationResponse, error)
 	CancelOrder(ctx context.Context, accessToken string, accountSeq int64, orderID string) (invest.OrderMutationResponse, error)
 }
 
@@ -550,6 +551,7 @@ func newInvestOrderCommand(deps Dependencies) *cobra.Command {
 		Short: "Manage Toss Invest orders.",
 	}
 	cmd.AddCommand(newInvestOrderCreateCommand(deps))
+	cmd.AddCommand(newInvestOrderModifyCommand(deps))
 	cmd.AddCommand(newInvestOrderCancelCommand(deps))
 	return cmd
 }
@@ -634,6 +636,77 @@ func newInvestOrderCreateCommand(deps Dependencies) *cobra.Command {
 	cmd.Flags().StringVar(&quantity, "quantity", "", "Order quantity.")
 	cmd.Flags().StringVar(&price, "price", "", "Order price.")
 	cmd.Flags().StringVar(&orderAmount, "order-amount", "", "Order amount.")
+	cmd.Flags().BoolVar(&confirmHighValueOrder, "confirm-high-value-order", false, "Confirm high-value order.")
+	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Build the request without sending it.")
+	cmd.Flags().BoolVar(&yes, "yes", false, "Skip confirmation prompts when prompts are required.")
+	return cmd
+}
+
+func newInvestOrderModifyCommand(deps Dependencies) *cobra.Command {
+	var accountSeq int64
+	var orderType string
+	var quantity string
+	var price string
+	var confirmHighValueOrder bool
+	var dryRun bool
+	var yes bool
+
+	cmd := &cobra.Command{
+		Use:   "modify <orderId>",
+		Short: "Modify an order.",
+		Args: func(cmd *cobra.Command, args []string) error {
+			if len(args) != 1 {
+				return apperr.Usage("order modify requires exactly one orderId")
+			}
+			if strings.TrimSpace(args[0]) == "" {
+				return apperr.Usage("orderId is required")
+			}
+			if !cmd.Flags().Changed("account-seq") {
+				return apperr.Usage("--account-seq is required")
+			}
+			if strings.TrimSpace(orderType) == "" {
+				return apperr.Usage("--order-type is required")
+			}
+			if strings.EqualFold(strings.TrimSpace(orderType), "LIMIT") && strings.TrimSpace(price) == "" {
+				return apperr.Usage("--price is required for LIMIT orders")
+			}
+			_ = yes
+			return nil
+		},
+		RunE: func(cmd *cobra.Command, args []string) error {
+			orderID := strings.TrimSpace(args[0])
+			input := invest.OrderModifyRequest{
+				OrderType:             strings.ToUpper(strings.TrimSpace(orderType)),
+				Quantity:              strings.TrimSpace(quantity),
+				Price:                 strings.TrimSpace(price),
+				ConfirmHighValueOrder: confirmHighValueOrder,
+			}
+			if dryRun {
+				return writeDryRun(cmd, "POST", "/api/v1/orders/"+orderID+"/modify", accountSeq, input)
+			}
+
+			accessToken, err := accessTokenForInvest(context.Background(), deps)
+			if err != nil {
+				return err
+			}
+			orderAPI := deps.OrderAPI
+			if orderAPI == nil {
+				orderAPI = invest.NewClient("", nil)
+			}
+			order, err := orderAPI.ModifyOrder(context.Background(), accessToken, accountSeq, orderID, input)
+			if err != nil {
+				return err
+			}
+			if err := output.WriteJSON(cmd.OutOrStdout(), order); err != nil {
+				return apperr.Unexpected(err)
+			}
+			return nil
+		},
+	}
+	cmd.Flags().Int64Var(&accountSeq, "account-seq", 0, "Toss Invest account sequence.")
+	cmd.Flags().StringVar(&orderType, "order-type", "", "Order type: LIMIT or MARKET.")
+	cmd.Flags().StringVar(&quantity, "quantity", "", "Order quantity.")
+	cmd.Flags().StringVar(&price, "price", "", "Order price.")
 	cmd.Flags().BoolVar(&confirmHighValueOrder, "confirm-high-value-order", false, "Confirm high-value order.")
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Build the request without sending it.")
 	cmd.Flags().BoolVar(&yes, "yes", false, "Skip confirmation prompts when prompts are required.")

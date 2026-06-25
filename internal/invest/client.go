@@ -122,6 +122,13 @@ type OrderCreateRequest struct {
 	ConfirmHighValueOrder bool   `json:"confirmHighValueOrder,omitempty"`
 }
 
+type OrderModifyRequest struct {
+	OrderType             string `json:"orderType"`
+	Quantity              string `json:"quantity,omitempty"`
+	Price                 string `json:"price,omitempty"`
+	ConfirmHighValueOrder bool   `json:"confirmHighValueOrder,omitempty"`
+}
+
 type OrderMutationResponse struct {
 	Result json.RawMessage `json:"result"`
 }
@@ -336,6 +343,27 @@ func (c *Client) CreateOrder(ctx context.Context, accessToken string, accountSeq
 		return OrderMutationResponse{}, err
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+"/api/v1/orders", bytes.NewReader(body))
+	if err != nil {
+		return OrderMutationResponse{}, err
+	}
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("Authorization", "Bearer "+accessToken)
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Tossinvest-Account", strconv.FormatInt(accountSeq, 10))
+
+	var out OrderMutationResponse
+	if err := c.doJSON(req, &out); err != nil {
+		return OrderMutationResponse{}, err
+	}
+	return out, nil
+}
+
+func (c *Client) ModifyOrder(ctx context.Context, accessToken string, accountSeq int64, orderID string, input OrderModifyRequest) (OrderMutationResponse, error) {
+	body, err := json.Marshal(input)
+	if err != nil {
+		return OrderMutationResponse{}, err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+"/api/v1/orders/"+url.PathEscape(orderID)+"/modify", bytes.NewReader(body))
 	if err != nil {
 		return OrderMutationResponse{}, err
 	}

@@ -491,6 +491,67 @@ func TestCreateOrder(t *testing.T) {
 	}
 }
 
+func TestModifyOrder(t *testing.T) {
+	var gotMethod string
+	var gotPath string
+	var gotContentType string
+	var gotAccept string
+	var gotAuthorization string
+	var gotAccount string
+	var gotBody OrderModifyRequest
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotMethod = r.Method
+		gotPath = r.URL.EscapedPath()
+		gotContentType = r.Header.Get("Content-Type")
+		gotAccept = r.Header.Get("Accept")
+		gotAuthorization = r.Header.Get("Authorization")
+		gotAccount = r.Header.Get("X-Tossinvest-Account")
+		if err := json.NewDecoder(r.Body).Decode(&gotBody); err != nil {
+			t.Fatalf("Decode body err = %v", err)
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"result":{"orderId":"modified-order-1"}}`))
+	}))
+	defer server.Close()
+
+	client := NewClient(server.URL, server.Client())
+	got, err := client.ModifyOrder(context.Background(), "access-token", 1, "order/id", OrderModifyRequest{
+		OrderType: "LIMIT",
+		Quantity:  "15",
+		Price:     "185.5",
+	})
+	if err != nil {
+		t.Fatalf("ModifyOrder err = %v", err)
+	}
+
+	if gotMethod != http.MethodPost {
+		t.Fatalf("method = %q, want %q", gotMethod, http.MethodPost)
+	}
+	if gotPath != "/api/v1/orders/order%2Fid/modify" {
+		t.Fatalf("path = %q", gotPath)
+	}
+	if gotContentType != "application/json" {
+		t.Fatalf("Content-Type = %q", gotContentType)
+	}
+	if gotAccept != "application/json" {
+		t.Fatalf("Accept = %q", gotAccept)
+	}
+	if gotAuthorization != "Bearer access-token" {
+		t.Fatalf("Authorization = %q", gotAuthorization)
+	}
+	if gotAccount != "1" {
+		t.Fatalf("X-Tossinvest-Account = %q", gotAccount)
+	}
+	if gotBody.OrderType != "LIMIT" || gotBody.Quantity != "15" || gotBody.Price != "185.5" {
+		t.Fatalf("body = %+v", gotBody)
+	}
+	if string(got.Result) != `{"orderId":"modified-order-1"}` {
+		t.Fatalf("result = %s", got.Result)
+	}
+}
+
 func TestCancelOrder(t *testing.T) {
 	var gotMethod string
 	var gotPath string

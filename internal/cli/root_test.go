@@ -739,6 +739,101 @@ func TestInvestOrderCreateRequiresQuantityOrAmount(t *testing.T) {
 	}
 }
 
+func TestInvestOrderModifyModifiesOrder(t *testing.T) {
+	orderAPI := &fakeOrderAPI{
+		modifyResponse: invest.OrderMutationResponse{
+			Result: json.RawMessage(`{"orderId":"modified-order-1"}`),
+		},
+	}
+
+	stdout, stderr, exitCode := ExecuteForTestWithDeps(Dependencies{
+		SecretStore: auth.NewMemorySecretStore(),
+		EnvLookup: func(key string) (string, bool) {
+			if key == "TOSS_INVEST_ACCESS_TOKEN" {
+				return "env-token", true
+			}
+			return "", false
+		},
+		OrderAPI: orderAPI,
+	}, "invest", "order", "modify", "order-1", "--account-seq", "1", "--order-type", "limit", "--quantity", "15", "--price", "185.5")
+
+	if exitCode != apperr.ExitSuccess {
+		t.Fatalf("exitCode = %d, want %d; stdout=%s stderr=%s", exitCode, apperr.ExitSuccess, stdout, stderr)
+	}
+	if stderr != "" {
+		t.Fatalf("stderr = %q, want empty", stderr)
+	}
+	if orderAPI.accessToken != "env-token" || orderAPI.accountSeq != 1 || orderAPI.orderID != "order-1" {
+		t.Fatalf("orderAPI = %+v", orderAPI)
+	}
+	if orderAPI.modifyInput.OrderType != "LIMIT" || orderAPI.modifyInput.Quantity != "15" || orderAPI.modifyInput.Price != "185.5" {
+		t.Fatalf("modifyInput = %+v", orderAPI.modifyInput)
+	}
+
+	var got invest.OrderMutationResponse
+	if err := json.Unmarshal([]byte(stdout), &got); err != nil {
+		t.Fatalf("stdout is not valid JSON: %v\n%s", err, stdout)
+	}
+	if compactJSON(t, got.Result) != compactJSON(t, orderAPI.modifyResponse.Result) {
+		t.Fatalf("result = %s", got.Result)
+	}
+}
+
+func TestInvestOrderModifyDryRunDoesNotRequireAuth(t *testing.T) {
+	stdout, stderr, exitCode := ExecuteForTestWithDeps(Dependencies{
+		SecretStore: auth.NewMemorySecretStore(),
+		OrderAPI:    &fakeOrderAPI{},
+	}, "invest", "order", "modify", "order-1", "--dry-run", "--account-seq", "1", "--order-type", "LIMIT", "--price", "185.5")
+
+	if exitCode != apperr.ExitSuccess {
+		t.Fatalf("exitCode = %d, want %d; stdout=%s stderr=%s", exitCode, apperr.ExitSuccess, stdout, stderr)
+	}
+	if stderr != "" {
+		t.Fatalf("stderr = %q, want empty", stderr)
+	}
+
+	var got struct {
+		Method     string                    `json:"method"`
+		Path       string                    `json:"path"`
+		AccountSeq int64                     `json:"accountSeq"`
+		Body       invest.OrderModifyRequest `json:"body"`
+	}
+	if err := json.Unmarshal([]byte(stdout), &got); err != nil {
+		t.Fatalf("stdout is not valid JSON: %v\n%s", err, stdout)
+	}
+	if got.Method != "POST" || got.Path != "/api/v1/orders/order-1/modify" || got.AccountSeq != 1 {
+		t.Fatalf("dry-run = %+v", got)
+	}
+	if got.Body.OrderType != "LIMIT" || got.Body.Price != "185.5" {
+		t.Fatalf("body = %+v", got.Body)
+	}
+}
+
+func TestInvestOrderModifyRequiresPriceForLimit(t *testing.T) {
+	stdout, stderr, exitCode := ExecuteForTestWithDeps(Dependencies{
+		SecretStore: auth.NewMemorySecretStore(),
+		OrderAPI:    &fakeOrderAPI{},
+	}, "invest", "order", "modify", "order-1", "--account-seq", "1", "--order-type", "LIMIT")
+
+	if exitCode != apperr.ExitUsage {
+		t.Fatalf("exitCode = %d, want %d; stdout=%s stderr=%s", exitCode, apperr.ExitUsage, stdout, stderr)
+	}
+	if stderr != "" {
+		t.Fatalf("stderr = %q, want empty", stderr)
+	}
+	var got struct {
+		Error struct {
+			Code string `json:"code"`
+		} `json:"error"`
+	}
+	if err := json.Unmarshal([]byte(stdout), &got); err != nil {
+		t.Fatalf("stdout is not valid JSON: %v\n%s", err, stdout)
+	}
+	if got.Error.Code != apperr.CodeUsage {
+		t.Fatalf("error code = %q", got.Error.Code)
+	}
+}
+
 func TestInvestOrderCancelCancelsOrder(t *testing.T) {
 	orderAPI := &fakeOrderAPI{
 		cancelResponse: invest.OrderMutationResponse{
@@ -1015,8 +1110,10 @@ type fakeOrderAPI struct {
 	accessToken    string
 	accountSeq     int64
 	createInput    invest.OrderCreateRequest
+	modifyInput    invest.OrderModifyRequest
 	orderID        string
 	createResponse invest.OrderMutationResponse
+	modifyResponse invest.OrderMutationResponse
 	cancelResponse invest.OrderMutationResponse
 	err            error
 }
@@ -1026,6 +1123,14 @@ func (f *fakeOrderAPI) CreateOrder(ctx context.Context, accessToken string, acco
 	f.accountSeq = accountSeq
 	f.createInput = input
 	return f.createResponse, f.err
+}
+
+func (f *fakeOrderAPI) ModifyOrder(ctx context.Context, accessToken string, accountSeq int64, orderID string, input invest.OrderModifyRequest) (invest.OrderMutationResponse, error) {
+	f.accessToken = accessToken
+	f.accountSeq = accountSeq
+	f.orderID = orderID
+	f.modifyInput = input
+	return f.modifyResponse, f.err
 }
 
 func (f *fakeOrderAPI) CancelOrder(ctx context.Context, accessToken string, accountSeq int64, orderID string) (invest.OrderMutationResponse, error) {
