@@ -13,9 +13,9 @@ func TestStatusUsesEnvCredentialsAndToken(t *testing.T) {
 	store := NewMemorySecretStore()
 	service := NewService(store, func(key string) (string, bool) {
 		values := map[string]string{
-			"TOSS_INVEST_API_KEY":      "api-key",
-			"TOSS_INVEST_SECRET_KEY":   "secret-key",
-			"TOSS_INVEST_ACCESS_TOKEN": "access-token",
+			"TOSS_INVEST_CLIENT_ID":     "client-id",
+			"TOSS_INVEST_CLIENT_SECRET": "client-secret",
+			"TOSS_INVEST_ACCESS_TOKEN":  "access-token",
 		}
 		value, ok := values[key]
 		return value, ok
@@ -30,7 +30,7 @@ func TestStatusUsesEnvCredentialsAndToken(t *testing.T) {
 	}
 }
 
-func TestTokenUsesAPIKeyEnvCredentialsBeforeLegacyNames(t *testing.T) {
+func TestTokenUsesClientEnvCredentials(t *testing.T) {
 	store := NewMemorySecretStore()
 	issuer := &fakeTokenIssuer{
 		response: invest.OAuth2TokenResponse{
@@ -41,40 +41,8 @@ func TestTokenUsesAPIKeyEnvCredentialsBeforeLegacyNames(t *testing.T) {
 	}
 	service := NewService(store, func(key string) (string, bool) {
 		values := map[string]string{
-			"TOSS_INVEST_API_KEY":       "api-key",
-			"TOSS_INVEST_SECRET_KEY":    "secret-key",
-			"TOSS_INVEST_CLIENT_ID":     "legacy-client-id",
-			"TOSS_INVEST_CLIENT_SECRET": "legacy-client-secret",
-		}
-		value, ok := values[key]
-		return value, ok
-	})
-
-	status, err := service.Token(context.Background(), issuer)
-	if err != nil {
-		t.Fatalf("Token err = %v", err)
-	}
-	if issuer.input.ClientID != "api-key" || issuer.input.ClientSecret != "secret-key" {
-		t.Fatalf("issuer input = %+v", issuer.input)
-	}
-	if !status.Configured || !status.Valid || status.Source != "keyring" {
-		t.Fatalf("token status = %+v", status)
-	}
-}
-
-func TestTokenUsesLegacyClientEnvCredentials(t *testing.T) {
-	store := NewMemorySecretStore()
-	issuer := &fakeTokenIssuer{
-		response: invest.OAuth2TokenResponse{
-			AccessToken: "issued-token",
-			TokenType:   "Bearer",
-			ExpiresIn:   3600,
-		},
-	}
-	service := NewService(store, func(key string) (string, bool) {
-		values := map[string]string{
-			"TOSS_INVEST_CLIENT_ID":     "legacy-client-id",
-			"TOSS_INVEST_CLIENT_SECRET": "legacy-client-secret",
+			"TOSS_INVEST_CLIENT_ID":     "client-id",
+			"TOSS_INVEST_CLIENT_SECRET": "client-secret",
 		}
 		value, ok := values[key]
 		return value, ok
@@ -84,7 +52,7 @@ func TestTokenUsesLegacyClientEnvCredentials(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Token err = %v", err)
 	}
-	if issuer.input.ClientID != "legacy-client-id" || issuer.input.ClientSecret != "legacy-client-secret" {
+	if issuer.input.ClientID != "client-id" || issuer.input.ClientSecret != "client-secret" {
 		t.Fatalf("issuer input = %+v", issuer.input)
 	}
 }
