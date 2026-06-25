@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 )
 
@@ -65,6 +66,23 @@ type Price struct {
 	Timestamp string `json:"timestamp"`
 	LastPrice string `json:"lastPrice"`
 	Currency  string `json:"currency"`
+}
+
+type BuyingPowerResponse struct {
+	Result BuyingPower `json:"result"`
+}
+
+type BuyingPower struct {
+	Currency        string `json:"currency"`
+	CashBuyingPower string `json:"cashBuyingPower"`
+}
+
+type SellableQuantityResponse struct {
+	Result SellableQuantity `json:"result"`
+}
+
+type SellableQuantity struct {
+	SellableQuantity string `json:"sellableQuantity"`
 }
 
 type APIError struct {
@@ -138,6 +156,44 @@ func (c *Client) GetPrices(ctx context.Context, symbols string) (PricesResponse,
 	var out PricesResponse
 	if err := c.doJSON(req, &out); err != nil {
 		return PricesResponse{}, err
+	}
+	return out, nil
+}
+
+func (c *Client) GetBuyingPower(ctx context.Context, accessToken string, accountSeq int64, currency string) (BuyingPowerResponse, error) {
+	values := url.Values{}
+	values.Set("currency", currency)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+"/api/v1/buying-power?"+values.Encode(), nil)
+	if err != nil {
+		return BuyingPowerResponse{}, err
+	}
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("Authorization", "Bearer "+accessToken)
+	req.Header.Set("X-Tossinvest-Account", strconv.FormatInt(accountSeq, 10))
+
+	var out BuyingPowerResponse
+	if err := c.doJSON(req, &out); err != nil {
+		return BuyingPowerResponse{}, err
+	}
+	return out, nil
+}
+
+func (c *Client) GetSellableQuantity(ctx context.Context, accessToken string, accountSeq int64, symbol string) (SellableQuantityResponse, error) {
+	values := url.Values{}
+	values.Set("symbol", symbol)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+"/api/v1/sellable-quantity?"+values.Encode(), nil)
+	if err != nil {
+		return SellableQuantityResponse{}, err
+	}
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("Authorization", "Bearer "+accessToken)
+	req.Header.Set("X-Tossinvest-Account", strconv.FormatInt(accountSeq, 10))
+
+	var out SellableQuantityResponse
+	if err := c.doJSON(req, &out); err != nil {
+		return SellableQuantityResponse{}, err
 	}
 	return out, nil
 }

@@ -31,6 +31,7 @@ type Dependencies struct {
 	TokenIssuer auth.TokenIssuer
 	AccountAPI  AccountAPI
 	MarketData  MarketDataAPI
+	OrderInfo   OrderInfoAPI
 }
 
 type AccountAPI interface {
@@ -39,6 +40,11 @@ type AccountAPI interface {
 
 type MarketDataAPI interface {
 	GetPrices(ctx context.Context, symbols string) (invest.PricesResponse, error)
+}
+
+type OrderInfoAPI interface {
+	GetBuyingPower(ctx context.Context, accessToken string, accountSeq int64, currency string) (invest.BuyingPowerResponse, error)
+	GetSellableQuantity(ctx context.Context, accessToken string, accountSeq int64, symbol string) (invest.SellableQuantityResponse, error)
 }
 
 func Execute() int {
@@ -121,6 +127,7 @@ func newInvestCommand(deps Dependencies) *cobra.Command {
 	cmd.AddCommand(newInvestAccountCommand(deps))
 	cmd.AddCommand(newInvestAuthCommand(deps))
 	cmd.AddCommand(newInvestMarketDataCommand(deps))
+	cmd.AddCommand(newInvestOrderInfoCommand(deps))
 	return cmd
 }
 
@@ -144,12 +151,7 @@ func newInvestAccountListCommand(deps Dependencies) *cobra.Command {
 			return nil
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			service := auth.NewService(deps.SecretStore, deps.EnvLookup)
-			issuer := deps.TokenIssuer
-			if issuer == nil {
-				issuer = invest.NewClient("", nil)
-			}
-			accessToken, err := service.AccessToken(context.Background(), issuer)
+			accessToken, err := accessTokenForInvest(context.Background(), deps)
 			if err != nil {
 				return err
 			}
@@ -211,6 +213,111 @@ func newInvestMarketDataPricesCommand(deps Dependencies) *cobra.Command {
 	}
 	cmd.Flags().StringVar(&symbols, "symbols", "", "Comma-separated Toss Invest symbols.")
 	return cmd
+}
+
+func newInvestOrderInfoCommand(deps Dependencies) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "order-info",
+		Short: "Read Toss Invest order information.",
+	}
+	cmd.AddCommand(newInvestOrderInfoBuyingPowerCommand(deps))
+	cmd.AddCommand(newInvestOrderInfoSellableQuantityCommand(deps))
+	return cmd
+}
+
+func newInvestOrderInfoBuyingPowerCommand(deps Dependencies) *cobra.Command {
+	var accountSeq int64
+	var currency string
+
+	cmd := &cobra.Command{
+		Use:   "buying-power",
+		Short: "Get cash buying power.",
+		Args: func(cmd *cobra.Command, args []string) error {
+			if len(args) > 0 {
+				return apperr.Usage("order-info buying-power does not accept arguments")
+			}
+			if !cmd.Flags().Changed("account-seq") {
+				return apperr.Usage("--account-seq is required")
+			}
+			if strings.TrimSpace(currency) == "" {
+				return apperr.Usage("--currency is required")
+			}
+			return nil
+		},
+		RunE: func(cmd *cobra.Command, args []string) error {
+			accessToken, err := accessTokenForInvest(context.Background(), deps)
+			if err != nil {
+				return err
+			}
+			orderInfo := deps.OrderInfo
+			if orderInfo == nil {
+				orderInfo = invest.NewClient("", nil)
+			}
+			buyingPower, err := orderInfo.GetBuyingPower(context.Background(), accessToken, accountSeq, strings.TrimSpace(currency))
+			if err != nil {
+				return err
+			}
+			if err := output.WriteJSON(cmd.OutOrStdout(), buyingPower); err != nil {
+				return apperr.Unexpected(err)
+			}
+			return nil
+		},
+	}
+	cmd.Flags().Int64Var(&accountSeq, "account-seq", 0, "Toss Invest account sequence.")
+	cmd.Flags().StringVar(&currency, "currency", "", "Currency code.")
+	return cmd
+}
+
+func newInvestOrderInfoSellableQuantityCommand(deps Dependencies) *cobra.Command {
+	var accountSeq int64
+	var symbol string
+
+	cmd := &cobra.Command{
+		Use:   "sellable-quantity",
+		Short: "Get sellable quantity for a symbol.",
+		Args: func(cmd *cobra.Command, args []string) error {
+			if len(args) > 0 {
+				return apperr.Usage("order-info sellable-quantity does not accept arguments")
+			}
+			if !cmd.Flags().Changed("account-seq") {
+				return apperr.Usage("--account-seq is required")
+			}
+			if strings.TrimSpace(symbol) == "" {
+				return apperr.Usage("--symbol is required")
+			}
+			return nil
+		},
+		RunE: func(cmd *cobra.Command, args []string) error {
+			accessToken, err := accessTokenForInvest(context.Background(), deps)
+			if err != nil {
+				return err
+			}
+			orderInfo := deps.OrderInfo
+			if orderInfo == nil {
+				orderInfo = invest.NewClient("", nil)
+			}
+			sellableQuantity, err := orderInfo.GetSellableQuantity(context.Background(), accessToken, accountSeq, strings.TrimSpace(symbol))
+			if err != nil {
+				return err
+			}
+			if err := output.WriteJSON(cmd.OutOrStdout(), sellableQuantity); err != nil {
+				return apperr.Unexpected(err)
+			}
+			return nil
+		},
+	}
+	cmd.Flags().Int64Var(&accountSeq, "account-seq", 0, "Toss Invest account sequence.")
+	cmd.Flags().StringVar(&symbol, "symbol", "", "Toss Invest symbol.")
+	return cmd
+}
+
+func accessTokenForInvest(ctx context.Context, deps Dependencies) (string, error) {
+	service := auth.NewService(deps.SecretStore, deps.EnvLookup)
+	issuer := deps.TokenIssuer
+	if issuer == nil {
+		issuer = invest.NewClient("", nil)
+	}
+	return service.AccessToken(ctx, issuer)
 }
 
 func newInvestAuthCommand(deps Dependencies) *cobra.Command {

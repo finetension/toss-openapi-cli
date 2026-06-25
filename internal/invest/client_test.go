@@ -209,3 +209,112 @@ func TestGetPrices(t *testing.T) {
 		t.Fatalf("price = %+v", got.Result[0])
 	}
 }
+
+func TestGetBuyingPower(t *testing.T) {
+	var gotMethod string
+	var gotPath string
+	var gotCurrency string
+	var gotAccept string
+	var gotAuthorization string
+	var gotAccount string
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotMethod = r.Method
+		gotPath = r.URL.Path
+		gotCurrency = r.URL.Query().Get("currency")
+		gotAccept = r.Header.Get("Accept")
+		gotAuthorization = r.Header.Get("Authorization")
+		gotAccount = r.Header.Get("X-Tossinvest-Account")
+
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(BuyingPowerResponse{
+			Result: BuyingPower{
+				Currency:        "USD",
+				CashBuyingPower: "3500.5",
+			},
+		})
+	}))
+	defer server.Close()
+
+	client := NewClient(server.URL, server.Client())
+	got, err := client.GetBuyingPower(context.Background(), "access-token", 1, "USD")
+	if err != nil {
+		t.Fatalf("GetBuyingPower err = %v", err)
+	}
+
+	if gotMethod != http.MethodGet {
+		t.Fatalf("method = %q, want %q", gotMethod, http.MethodGet)
+	}
+	if gotPath != "/api/v1/buying-power" {
+		t.Fatalf("path = %q, want %q", gotPath, "/api/v1/buying-power")
+	}
+	if gotCurrency != "USD" {
+		t.Fatalf("currency = %q", gotCurrency)
+	}
+	if gotAccept != "application/json" {
+		t.Fatalf("Accept = %q", gotAccept)
+	}
+	if gotAuthorization != "Bearer access-token" {
+		t.Fatalf("Authorization = %q", gotAuthorization)
+	}
+	if gotAccount != "1" {
+		t.Fatalf("X-Tossinvest-Account = %q", gotAccount)
+	}
+	if got.Result.Currency != "USD" || got.Result.CashBuyingPower != "3500.5" {
+		t.Fatalf("buying power = %+v", got.Result)
+	}
+}
+
+func TestGetSellableQuantity(t *testing.T) {
+	var gotMethod string
+	var gotPath string
+	var gotSymbol string
+	var gotAccept string
+	var gotAuthorization string
+	var gotAccount string
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotMethod = r.Method
+		gotPath = r.URL.Path
+		gotSymbol = r.URL.Query().Get("symbol")
+		gotAccept = r.Header.Get("Accept")
+		gotAuthorization = r.Header.Get("Authorization")
+		gotAccount = r.Header.Get("X-Tossinvest-Account")
+
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(SellableQuantityResponse{
+			Result: SellableQuantity{
+				SellableQuantity: "5.5",
+			},
+		})
+	}))
+	defer server.Close()
+
+	client := NewClient(server.URL, server.Client())
+	got, err := client.GetSellableQuantity(context.Background(), "access-token", 1, "AAPL")
+	if err != nil {
+		t.Fatalf("GetSellableQuantity err = %v", err)
+	}
+
+	if gotMethod != http.MethodGet {
+		t.Fatalf("method = %q, want %q", gotMethod, http.MethodGet)
+	}
+	if gotPath != "/api/v1/sellable-quantity" {
+		t.Fatalf("path = %q, want %q", gotPath, "/api/v1/sellable-quantity")
+	}
+	if gotSymbol != "AAPL" {
+		t.Fatalf("symbol = %q", gotSymbol)
+	}
+	if gotAccept != "application/json" {
+		t.Fatalf("Accept = %q", gotAccept)
+	}
+	if gotAuthorization != "Bearer access-token" {
+		t.Fatalf("Authorization = %q", gotAuthorization)
+	}
+	if gotAccount != "1" {
+		t.Fatalf("X-Tossinvest-Account = %q", gotAccount)
+	}
+	if got.Result.SellableQuantity != "5.5" {
+		t.Fatalf("sellable quantity = %+v", got.Result)
+	}
+}

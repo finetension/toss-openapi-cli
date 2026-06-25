@@ -401,6 +401,122 @@ func TestInvestMarketDataPricesRequiresSymbols(t *testing.T) {
 	}
 }
 
+func TestInvestOrderInfoBuyingPowerOutputsBuyingPower(t *testing.T) {
+	orderInfo := &fakeOrderInfoAPI{
+		buyingPowerResponse: invest.BuyingPowerResponse{
+			Result: invest.BuyingPower{
+				Currency:        "USD",
+				CashBuyingPower: "3500.5",
+			},
+		},
+	}
+
+	stdout, stderr, exitCode := ExecuteForTestWithDeps(Dependencies{
+		SecretStore: auth.NewMemorySecretStore(),
+		EnvLookup: func(key string) (string, bool) {
+			if key == "TOSS_INVEST_ACCESS_TOKEN" {
+				return "env-token", true
+			}
+			return "", false
+		},
+		OrderInfo: orderInfo,
+	}, "invest", "order-info", "buying-power", "--account-seq", "1", "--currency", "USD")
+
+	if exitCode != apperr.ExitSuccess {
+		t.Fatalf("exitCode = %d, want %d; stdout=%s stderr=%s", exitCode, apperr.ExitSuccess, stdout, stderr)
+	}
+	if stderr != "" {
+		t.Fatalf("stderr = %q, want empty", stderr)
+	}
+	if orderInfo.accessToken != "env-token" {
+		t.Fatalf("accessToken = %q", orderInfo.accessToken)
+	}
+	if orderInfo.accountSeq != 1 {
+		t.Fatalf("accountSeq = %d", orderInfo.accountSeq)
+	}
+	if orderInfo.currency != "USD" {
+		t.Fatalf("currency = %q", orderInfo.currency)
+	}
+
+	var got invest.BuyingPowerResponse
+	if err := json.Unmarshal([]byte(stdout), &got); err != nil {
+		t.Fatalf("stdout is not valid JSON: %v\n%s", err, stdout)
+	}
+	if got.Result.Currency != "USD" || got.Result.CashBuyingPower != "3500.5" {
+		t.Fatalf("buying power = %+v", got.Result)
+	}
+}
+
+func TestInvestOrderInfoSellableQuantityOutputsSellableQuantity(t *testing.T) {
+	orderInfo := &fakeOrderInfoAPI{
+		sellableQuantityResponse: invest.SellableQuantityResponse{
+			Result: invest.SellableQuantity{
+				SellableQuantity: "5.5",
+			},
+		},
+	}
+
+	stdout, stderr, exitCode := ExecuteForTestWithDeps(Dependencies{
+		SecretStore: auth.NewMemorySecretStore(),
+		EnvLookup: func(key string) (string, bool) {
+			if key == "TOSS_INVEST_ACCESS_TOKEN" {
+				return "env-token", true
+			}
+			return "", false
+		},
+		OrderInfo: orderInfo,
+	}, "invest", "order-info", "sellable-quantity", "--account-seq", "1", "--symbol", "AAPL")
+
+	if exitCode != apperr.ExitSuccess {
+		t.Fatalf("exitCode = %d, want %d; stdout=%s stderr=%s", exitCode, apperr.ExitSuccess, stdout, stderr)
+	}
+	if stderr != "" {
+		t.Fatalf("stderr = %q, want empty", stderr)
+	}
+	if orderInfo.accessToken != "env-token" {
+		t.Fatalf("accessToken = %q", orderInfo.accessToken)
+	}
+	if orderInfo.accountSeq != 1 {
+		t.Fatalf("accountSeq = %d", orderInfo.accountSeq)
+	}
+	if orderInfo.symbol != "AAPL" {
+		t.Fatalf("symbol = %q", orderInfo.symbol)
+	}
+
+	var got invest.SellableQuantityResponse
+	if err := json.Unmarshal([]byte(stdout), &got); err != nil {
+		t.Fatalf("stdout is not valid JSON: %v\n%s", err, stdout)
+	}
+	if got.Result.SellableQuantity != "5.5" {
+		t.Fatalf("sellable quantity = %+v", got.Result)
+	}
+}
+
+func TestInvestOrderInfoBuyingPowerRequiresAccountSeq(t *testing.T) {
+	stdout, stderr, exitCode := ExecuteForTestWithDeps(Dependencies{
+		SecretStore: auth.NewMemorySecretStore(),
+		OrderInfo:   &fakeOrderInfoAPI{},
+	}, "invest", "order-info", "buying-power", "--currency", "USD")
+
+	if exitCode != apperr.ExitUsage {
+		t.Fatalf("exitCode = %d, want %d; stdout=%s stderr=%s", exitCode, apperr.ExitUsage, stdout, stderr)
+	}
+	if stderr != "" {
+		t.Fatalf("stderr = %q, want empty", stderr)
+	}
+	var got struct {
+		Error struct {
+			Code string `json:"code"`
+		} `json:"error"`
+	}
+	if err := json.Unmarshal([]byte(stdout), &got); err != nil {
+		t.Fatalf("stdout is not valid JSON: %v\n%s", err, stdout)
+	}
+	if got.Error.Code != apperr.CodeUsage {
+		t.Fatalf("error code = %q", got.Error.Code)
+	}
+}
+
 type fakeTokenIssuer struct {
 	input    invest.OAuth2TokenRequest
 	response invest.OAuth2TokenResponse
@@ -432,4 +548,28 @@ type fakeMarketDataAPI struct {
 func (f *fakeMarketDataAPI) GetPrices(ctx context.Context, symbols string) (invest.PricesResponse, error) {
 	f.symbols = symbols
 	return f.response, f.err
+}
+
+type fakeOrderInfoAPI struct {
+	accessToken              string
+	accountSeq               int64
+	currency                 string
+	symbol                   string
+	buyingPowerResponse      invest.BuyingPowerResponse
+	sellableQuantityResponse invest.SellableQuantityResponse
+	err                      error
+}
+
+func (f *fakeOrderInfoAPI) GetBuyingPower(ctx context.Context, accessToken string, accountSeq int64, currency string) (invest.BuyingPowerResponse, error) {
+	f.accessToken = accessToken
+	f.accountSeq = accountSeq
+	f.currency = currency
+	return f.buyingPowerResponse, f.err
+}
+
+func (f *fakeOrderInfoAPI) GetSellableQuantity(ctx context.Context, accessToken string, accountSeq int64, symbol string) (invest.SellableQuantityResponse, error) {
+	f.accessToken = accessToken
+	f.accountSeq = accountSeq
+	f.symbol = symbol
+	return f.sellableQuantityResponse, f.err
 }
