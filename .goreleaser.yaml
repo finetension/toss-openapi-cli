@@ -1,0 +1,49 @@
+version: 2
+
+project_name: tosscli
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: tosscli
+    main: ./cmd/tosscli
+    binary: tosscli
+    goos:
+      - darwin
+      - linux
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ignore:
+      - goos: windows
+        goarch: arm64
+    ldflags:
+      - -s -w
+      - -X github.com/finetension/toss-openapi-cli/internal/version.Version={{ .Version }}
+      - -X github.com/finetension/toss-openapi-cli/internal/version.Commit={{ .Commit }}
+      - -X github.com/finetension/toss-openapi-cli/internal/version.Date={{ .Date }}
+      - -X github.com/finetension/toss-openapi-cli/internal/version.BuiltBy=goreleaser
+
+archives:
+  - id: default
+    ids:
+      - tosscli
+    name_template: "{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}"
+    formats:
+      - tar.gz
+    format_overrides:
+      - goos: windows
+        formats:
+          - zip
+
+checksum:
+  name_template: checksums.txt
+
+snapshot:
+  version_template: "{{ incpatch .Version }}-next"
+
+changelog:
+  disable: true
