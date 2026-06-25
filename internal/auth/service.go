@@ -171,14 +171,14 @@ func (s *Service) Status() Status {
 }
 
 func (s *Service) hasEnvCredentials() bool {
-	_, hasID := s.env("TOSS_INVEST_CLIENT_ID")
-	_, hasSecret := s.env("TOSS_INVEST_CLIENT_SECRET")
+	_, hasID := s.envCredentialValue("TOSS_INVEST_API_KEY", "TOSS_INVEST_CLIENT_ID")
+	_, hasSecret := s.envCredentialValue("TOSS_INVEST_SECRET_KEY", "TOSS_INVEST_CLIENT_SECRET")
 	return hasID && hasSecret
 }
 
 func (s *Service) credentials() (Credentials, error) {
-	if clientID, hasID := s.env("TOSS_INVEST_CLIENT_ID"); hasID {
-		if clientSecret, hasSecret := s.env("TOSS_INVEST_CLIENT_SECRET"); hasSecret {
+	if clientID, hasID := s.envCredentialValue("TOSS_INVEST_API_KEY", "TOSS_INVEST_CLIENT_ID"); hasID {
+		if clientSecret, hasSecret := s.envCredentialValue("TOSS_INVEST_SECRET_KEY", "TOSS_INVEST_CLIENT_SECRET"); hasSecret {
 			return Credentials{ClientID: clientID, ClientSecret: clientSecret}, nil
 		}
 	}
@@ -198,6 +198,18 @@ func (s *Service) credentials() (Credentials, error) {
 		return Credentials{}, ErrCredentialsMissing
 	}
 	return credentials, nil
+}
+
+func (s *Service) envCredentialValue(primary string, aliases ...string) (string, bool) {
+	if value, ok := s.env(primary); ok {
+		return value, true
+	}
+	for _, alias := range aliases {
+		if value, ok := s.env(alias); ok {
+			return value, true
+		}
+	}
+	return "", false
 }
 
 func StoreCredentials(store SecretStore, credentials Credentials) error {
