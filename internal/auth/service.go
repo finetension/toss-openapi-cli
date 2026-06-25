@@ -11,6 +11,8 @@ import (
 
 type EnvLookup func(key string) (string, bool)
 
+var ErrCredentialsMissing = errors.New("credentials missing")
+
 func DefaultEnvLookup(key string) (string, bool) {
 	return os.LookupEnv(key)
 }
@@ -58,6 +60,49 @@ func (s *Service) Login(ctx context.Context, issuer TokenIssuer, credentials Cre
 		return Status{}, err
 	}
 	return s.Status(), nil
+}
+
+func (s *Service) Token(ctx context.Context, issuer TokenIssuer) (TokenStatus, error) {
+	if _, ok := s.env("TOSS_INVEST_ACCESS_TOKEN"); ok {
+		return TokenStatus{Configured: true, Valid: true, Source: "env"}, nil
+	}
+
+	if encoded, err := s.store.Get(KeyringService, InvestToken); err == nil {
+		token, decodeErr := DecodeCachedToken(encoded)
+		if decodeErr == nil && token.Valid(s.now()) {
+			return TokenStatus{
+				Configured: true,
+				Valid:      true,
+				Source:     "keyring",
+				ExpiresAt:  token.ExpiresAt.Format(time.RFC3339),
+			}, nil
+		}
+	}
+
+	credentials, err := s.credentials()
+	if err != nil {
+		return TokenStatus{}, err
+	}
+	token, err := issuer.IssueOAuth2Token(ctx, invest.OAuth2TokenRequest{
+		ClientID:     credentials.ClientID,
+		ClientSecret: credentials.ClientSecret,
+	})
+	if err != nil {
+		return TokenStatus{}, err
+	}
+	cached := CachedToken{
+		AccessToken: token.AccessToken,
+		ExpiresAt:   s.now().Add(time.Duration(token.ExpiresIn) * time.Second).UTC(),
+	}
+	if err := StoreToken(s.store, cached); err != nil {
+		return TokenStatus{}, err
+	}
+	return TokenStatus{
+		Configured: true,
+		Valid:      true,
+		Source:     "keyring",
+		ExpiresAt:  cached.ExpiresAt.Format(time.RFC3339),
+	}, nil
 }
 
 func (s *Service) Logout() (Status, error) {
@@ -118,6 +163,30 @@ func (s *Service) hasEnvCredentials() bool {
 	_, hasID := s.env("TOSS_INVEST_CLIENT_ID")
 	_, hasSecret := s.env("TOSS_INVEST_CLIENT_SECRET")
 	return hasID && hasSecret
+}
+
+func (s *Service) credentials() (Credentials, error) {
+	if clientID, hasID := s.env("TOSS_INVEST_CLIENT_ID"); hasID {
+		if clientSecret, hasSecret := s.env("TOSS_INVEST_CLIENT_SECRET"); hasSecret {
+			return Credentials{ClientID: clientID, ClientSecret: clientSecret}, nil
+		}
+	}
+
+	encoded, err := s.store.Get(KeyringService, InvestCredentials)
+	if err != nil {
+		if errors.Is(err, ErrSecretNotFound) {
+			return Credentials{}, ErrCredentialsMissing
+		}
+		return Credentials{}, err
+	}
+	credentials, err := DecodeCredentials(encoded)
+	if err != nil {
+		return Credentials{}, err
+	}
+	if credentials.ClientID == "" || credentials.ClientSecret == "" {
+		return Credentials{}, ErrCredentialsMissing
+	}
+	return credentials, nil
 }
 
 func StoreCredentials(store SecretStore, credentials Credentials) error {

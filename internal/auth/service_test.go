@@ -2,6 +2,7 @@ package auth
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -138,6 +139,73 @@ func TestLogoutSucceedsWhenNothingStored(t *testing.T) {
 	}
 	if got.Credentials.Configured || got.Token.Configured {
 		t.Fatalf("status = %+v", got)
+	}
+}
+
+func TestTokenUsesValidCachedToken(t *testing.T) {
+	store := NewMemorySecretStore()
+	expiresAt := time.Now().Add(TokenRefreshBuffer + time.Hour).UTC()
+	if err := StoreToken(store, CachedToken{AccessToken: "cached-token", ExpiresAt: expiresAt}); err != nil {
+		t.Fatalf("StoreToken err = %v", err)
+	}
+
+	service := NewService(store, func(key string) (string, bool) { return "", false })
+	status, err := service.Token(context.Background(), &fakeTokenIssuer{})
+	if err != nil {
+		t.Fatalf("Token err = %v", err)
+	}
+	if !status.Configured || !status.Valid || status.Source != "keyring" {
+		t.Fatalf("token status = %+v", status)
+	}
+}
+
+func TestTokenRefreshesExpiredToken(t *testing.T) {
+	store := NewMemorySecretStore()
+	if err := StoreCredentials(store, Credentials{ClientID: "client-id", ClientSecret: "client-secret"}); err != nil {
+		t.Fatalf("StoreCredentials err = %v", err)
+	}
+	if err := StoreToken(store, CachedToken{AccessToken: "expired-token", ExpiresAt: time.Now().Add(-time.Minute)}); err != nil {
+		t.Fatalf("StoreToken err = %v", err)
+	}
+	issuer := &fakeTokenIssuer{
+		response: invest.OAuth2TokenResponse{
+			AccessToken: "new-token",
+			TokenType:   "Bearer",
+			ExpiresIn:   3600,
+		},
+	}
+	service := NewService(store, func(key string) (string, bool) { return "", false })
+
+	status, err := service.Token(context.Background(), issuer)
+	if err != nil {
+		t.Fatalf("Token err = %v", err)
+	}
+	if issuer.input.ClientID != "client-id" || issuer.input.ClientSecret != "client-secret" {
+		t.Fatalf("issuer input = %+v", issuer.input)
+	}
+	if !status.Configured || !status.Valid || status.Source != "keyring" {
+		t.Fatalf("token status = %+v", status)
+	}
+
+	encoded, err := store.Get(KeyringService, InvestToken)
+	if err != nil {
+		t.Fatalf("stored token err = %v", err)
+	}
+	token, err := DecodeCachedToken(encoded)
+	if err != nil {
+		t.Fatalf("DecodeCachedToken err = %v", err)
+	}
+	if token.AccessToken != "new-token" {
+		t.Fatalf("stored token = %+v", token)
+	}
+}
+
+func TestTokenReturnsCredentialsMissing(t *testing.T) {
+	service := NewService(NewMemorySecretStore(), func(key string) (string, bool) { return "", false })
+
+	_, err := service.Token(context.Background(), &fakeTokenIssuer{})
+	if !errors.Is(err, ErrCredentialsMissing) {
+		t.Fatalf("Token err = %v, want ErrCredentialsMissing", err)
 	}
 }
 

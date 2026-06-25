@@ -200,6 +200,71 @@ func TestInvestAuthLogoutClearsStoredAuth(t *testing.T) {
 	}
 }
 
+func TestInvestAuthTokenRefreshesAndOutputsStatus(t *testing.T) {
+	store := auth.NewMemorySecretStore()
+	if err := auth.StoreCredentials(store, auth.Credentials{ClientID: "client-id", ClientSecret: "client-secret"}); err != nil {
+		t.Fatalf("StoreCredentials err = %v", err)
+	}
+	issuer := &fakeTokenIssuer{
+		response: invest.OAuth2TokenResponse{
+			AccessToken: "token",
+			TokenType:   "Bearer",
+			ExpiresIn:   3600,
+		},
+	}
+
+	stdout, stderr, exitCode := ExecuteForTestWithDeps(Dependencies{
+		SecretStore: store,
+		TokenIssuer: issuer,
+	}, "invest", "auth", "token")
+
+	if exitCode != apperr.ExitSuccess {
+		t.Fatalf("exitCode = %d, want %d; stdout=%s stderr=%s", exitCode, apperr.ExitSuccess, stdout, stderr)
+	}
+	if stderr != "" {
+		t.Fatalf("stderr = %q, want empty", stderr)
+	}
+	var got struct {
+		Configured bool   `json:"configured"`
+		Valid      bool   `json:"valid"`
+		Source     string `json:"source"`
+		ExpiresAt  string `json:"expiresAt"`
+	}
+	if err := json.Unmarshal([]byte(stdout), &got); err != nil {
+		t.Fatalf("stdout is not valid JSON: %v\n%s", err, stdout)
+	}
+	if !got.Configured || !got.Valid || got.Source != "keyring" || got.ExpiresAt == "" {
+		t.Fatalf("token status = %+v", got)
+	}
+}
+
+func TestInvestAuthTokenMissingCredentials(t *testing.T) {
+	stdout, stderr, exitCode := ExecuteForTestWithDeps(Dependencies{
+		SecretStore: auth.NewMemorySecretStore(),
+		TokenIssuer: &fakeTokenIssuer{},
+	}, "invest", "auth", "token")
+
+	if exitCode != apperr.ExitAuthConfig {
+		t.Fatalf("exitCode = %d, want %d; stdout=%s stderr=%s", exitCode, apperr.ExitAuthConfig, stdout, stderr)
+	}
+	if stderr != "" {
+		t.Fatalf("stderr = %q, want empty", stderr)
+	}
+	var got struct {
+		Error struct {
+			Code    string `json:"code"`
+			Message string `json:"message"`
+			Reason  string `json:"reason"`
+		} `json:"error"`
+	}
+	if err := json.Unmarshal([]byte(stdout), &got); err != nil {
+		t.Fatalf("stdout is not valid JSON: %v\n%s", err, stdout)
+	}
+	if got.Error.Code != apperr.CodeAuthConfig {
+		t.Fatalf("error code = %q", got.Error.Code)
+	}
+}
+
 type fakeTokenIssuer struct {
 	input    invest.OAuth2TokenRequest
 	response invest.OAuth2TokenResponse

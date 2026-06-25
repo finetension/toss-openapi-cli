@@ -120,6 +120,7 @@ func newInvestAuthCommand(deps Dependencies) *cobra.Command {
 	cmd.AddCommand(newInvestAuthLoginCommand(deps))
 	cmd.AddCommand(newInvestAuthLogoutCommand(deps))
 	cmd.AddCommand(newInvestAuthStatusCommand(deps))
+	cmd.AddCommand(newInvestAuthTokenCommand(deps))
 	return cmd
 }
 
@@ -174,6 +175,34 @@ func newInvestAuthLogoutCommand(deps Dependencies) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			service := auth.NewService(deps.SecretStore, deps.EnvLookup)
 			status, err := service.Logout()
+			if err != nil {
+				return err
+			}
+			if err := output.WriteJSON(cmd.OutOrStdout(), status); err != nil {
+				return apperr.Unexpected(err)
+			}
+			return nil
+		},
+	}
+}
+
+func newInvestAuthTokenCommand(deps Dependencies) *cobra.Command {
+	return &cobra.Command{
+		Use:   "token",
+		Short: "Issue or refresh a Toss Invest access token.",
+		Args: func(cmd *cobra.Command, args []string) error {
+			if len(args) > 0 {
+				return apperr.Usage("auth token does not accept arguments")
+			}
+			return nil
+		},
+		RunE: func(cmd *cobra.Command, args []string) error {
+			service := auth.NewService(deps.SecretStore, deps.EnvLookup)
+			issuer := deps.TokenIssuer
+			if issuer == nil {
+				issuer = invest.NewClient("", nil)
+			}
+			status, err := service.Token(context.Background(), issuer)
 			if err != nil {
 				return err
 			}
@@ -242,6 +271,9 @@ func normalizeCobraError(err error) error {
 	var app *apperr.AppError
 	if errors.As(err, &app) {
 		return app
+	}
+	if errors.Is(err, auth.ErrCredentialsMissing) {
+		return apperr.New(apperr.CodeAuthConfig, "Missing Toss Invest credentials", apperr.ExitAuthConfig)
 	}
 	msg := err.Error()
 	if strings.HasPrefix(msg, "unknown command") ||
