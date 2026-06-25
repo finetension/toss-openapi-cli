@@ -523,6 +523,129 @@ func TestInvestStockInfoWarningsOutputsWarnings(t *testing.T) {
 	}
 }
 
+func TestInvestMarketDataPriceLimitsOutputsLimits(t *testing.T) {
+	marketData := &fakeMarketDataAPI{
+		priceLimitResponse: invest.PriceLimitResponse{
+			Result: json.RawMessage(`{"currency":"USD","upperLimitPrice":null,"lowerLimitPrice":null}`),
+		},
+	}
+
+	stdout, stderr, exitCode := ExecuteForTestWithDeps(Dependencies{
+		MarketData: marketData,
+	}, "invest", "market-data", "price-limits", "--symbol", "AAPL")
+
+	if exitCode != apperr.ExitSuccess {
+		t.Fatalf("exitCode = %d, want %d; stdout=%s stderr=%s", exitCode, apperr.ExitSuccess, stdout, stderr)
+	}
+	if stderr != "" {
+		t.Fatalf("stderr = %q, want empty", stderr)
+	}
+	if marketData.symbol != "AAPL" {
+		t.Fatalf("symbol = %q", marketData.symbol)
+	}
+
+	var got invest.PriceLimitResponse
+	if err := json.Unmarshal([]byte(stdout), &got); err != nil {
+		t.Fatalf("stdout is not valid JSON: %v\n%s", err, stdout)
+	}
+	if compactJSON(t, got.Result) != compactJSON(t, marketData.priceLimitResponse.Result) {
+		t.Fatalf("result = %s", got.Result)
+	}
+}
+
+func TestInvestMarketDataCandlesOutputsCandles(t *testing.T) {
+	adjusted := false
+	marketData := &fakeMarketDataAPI{
+		candlesResponse: invest.CandlesResponse{
+			Result: json.RawMessage(`{"candles":[{"closePrice":"185.70"}],"nextBefore":null}`),
+		},
+	}
+
+	stdout, stderr, exitCode := ExecuteForTestWithDeps(Dependencies{
+		MarketData: marketData,
+	}, "invest", "market-data", "candles", "--symbol", "AAPL", "--interval", "1d", "--count", "10", "--before", "2026-03-25T09:00:00+09:00", "--adjusted=false")
+
+	if exitCode != apperr.ExitSuccess {
+		t.Fatalf("exitCode = %d, want %d; stdout=%s stderr=%s", exitCode, apperr.ExitSuccess, stdout, stderr)
+	}
+	if stderr != "" {
+		t.Fatalf("stderr = %q, want empty", stderr)
+	}
+	want := invest.CandleParams{Symbol: "AAPL", Interval: "1d", Count: 10, Before: "2026-03-25T09:00:00+09:00", Adjusted: &adjusted}
+	if !reflect.DeepEqual(marketData.candleParams, want) {
+		t.Fatalf("candleParams = %+v", marketData.candleParams)
+	}
+
+	var got invest.CandlesResponse
+	if err := json.Unmarshal([]byte(stdout), &got); err != nil {
+		t.Fatalf("stdout is not valid JSON: %v\n%s", err, stdout)
+	}
+	if compactJSON(t, got.Result) != compactJSON(t, marketData.candlesResponse.Result) {
+		t.Fatalf("result = %s", got.Result)
+	}
+}
+
+func TestInvestMarketInfoExchangeRateOutputsRate(t *testing.T) {
+	marketInfo := &fakeMarketInfoAPI{
+		exchangeRateResponse: invest.ExchangeRateResponse{
+			Result: json.RawMessage(`{"baseCurrency":"USD","quoteCurrency":"KRW","rate":"1380.5"}`),
+		},
+	}
+
+	stdout, stderr, exitCode := ExecuteForTestWithDeps(Dependencies{
+		MarketInfo: marketInfo,
+	}, "invest", "market-info", "exchange-rate", "--base-currency", "usd", "--quote-currency", "krw", "--date-time", "2026-03-25T09:30:00+09:00")
+
+	if exitCode != apperr.ExitSuccess {
+		t.Fatalf("exitCode = %d, want %d; stdout=%s stderr=%s", exitCode, apperr.ExitSuccess, stdout, stderr)
+	}
+	if stderr != "" {
+		t.Fatalf("stderr = %q, want empty", stderr)
+	}
+	want := invest.ExchangeRateParams{BaseCurrency: "USD", QuoteCurrency: "KRW", DateTime: "2026-03-25T09:30:00+09:00"}
+	if !reflect.DeepEqual(marketInfo.exchangeRateParams, want) {
+		t.Fatalf("exchangeRateParams = %+v", marketInfo.exchangeRateParams)
+	}
+
+	var got invest.ExchangeRateResponse
+	if err := json.Unmarshal([]byte(stdout), &got); err != nil {
+		t.Fatalf("stdout is not valid JSON: %v\n%s", err, stdout)
+	}
+	if compactJSON(t, got.Result) != compactJSON(t, marketInfo.exchangeRateResponse.Result) {
+		t.Fatalf("result = %s", got.Result)
+	}
+}
+
+func TestInvestMarketInfoCalendarOutputsCalendar(t *testing.T) {
+	marketInfo := &fakeMarketInfoAPI{
+		calendarResponse: invest.MarketCalendarResponse{
+			Result: json.RawMessage(`{"today":{"date":"2026-03-25"}}`),
+		},
+	}
+
+	stdout, stderr, exitCode := ExecuteForTestWithDeps(Dependencies{
+		MarketInfo: marketInfo,
+	}, "invest", "market-info", "calendar", "us", "--date", "2026-03-25")
+
+	if exitCode != apperr.ExitSuccess {
+		t.Fatalf("exitCode = %d, want %d; stdout=%s stderr=%s", exitCode, apperr.ExitSuccess, stdout, stderr)
+	}
+	if stderr != "" {
+		t.Fatalf("stderr = %q, want empty", stderr)
+	}
+	if marketInfo.market != "US" || marketInfo.date != "2026-03-25" {
+		t.Fatalf("marketInfo = %+v", marketInfo)
+	}
+
+	var got invest.MarketCalendarResponse
+	if err := json.Unmarshal([]byte(stdout), &got); err != nil {
+		t.Fatalf("stdout is not valid JSON: %v\n%s", err, stdout)
+	}
+	if compactJSON(t, got.Result) != compactJSON(t, marketInfo.calendarResponse.Result) {
+		t.Fatalf("result = %s", got.Result)
+	}
+}
+
 func TestInvestOrderInfoBuyingPowerOutputsBuyingPower(t *testing.T) {
 	orderInfo := &fakeOrderInfoAPI{
 		buyingPowerResponse: invest.BuyingPowerResponse{
@@ -1146,13 +1269,16 @@ func (f *fakeAccountAPI) GetAccounts(ctx context.Context, accessToken string) (i
 }
 
 type fakeMarketDataAPI struct {
-	symbol            string
-	symbols           string
-	count             int
-	response          invest.PricesResponse
-	orderbookResponse invest.OrderbookResponse
-	tradesResponse    invest.TradesResponse
-	err               error
+	symbol             string
+	symbols            string
+	count              int
+	candleParams       invest.CandleParams
+	response           invest.PricesResponse
+	orderbookResponse  invest.OrderbookResponse
+	tradesResponse     invest.TradesResponse
+	priceLimitResponse invest.PriceLimitResponse
+	candlesResponse    invest.CandlesResponse
+	err                error
 }
 
 func (f *fakeMarketDataAPI) GetPrices(ctx context.Context, symbols string) (invest.PricesResponse, error) {
@@ -1169,6 +1295,36 @@ func (f *fakeMarketDataAPI) GetTrades(ctx context.Context, symbol string, count 
 	f.symbol = symbol
 	f.count = count
 	return f.tradesResponse, f.err
+}
+
+func (f *fakeMarketDataAPI) GetPriceLimit(ctx context.Context, symbol string) (invest.PriceLimitResponse, error) {
+	f.symbol = symbol
+	return f.priceLimitResponse, f.err
+}
+
+func (f *fakeMarketDataAPI) GetCandles(ctx context.Context, params invest.CandleParams) (invest.CandlesResponse, error) {
+	f.candleParams = params
+	return f.candlesResponse, f.err
+}
+
+type fakeMarketInfoAPI struct {
+	market               string
+	date                 string
+	exchangeRateParams   invest.ExchangeRateParams
+	exchangeRateResponse invest.ExchangeRateResponse
+	calendarResponse     invest.MarketCalendarResponse
+	err                  error
+}
+
+func (f *fakeMarketInfoAPI) GetExchangeRate(ctx context.Context, params invest.ExchangeRateParams) (invest.ExchangeRateResponse, error) {
+	f.exchangeRateParams = params
+	return f.exchangeRateResponse, f.err
+}
+
+func (f *fakeMarketInfoAPI) GetMarketCalendar(ctx context.Context, market string, date string) (invest.MarketCalendarResponse, error) {
+	f.market = market
+	f.date = date
+	return f.calendarResponse, f.err
 }
 
 type fakeStockInfoAPI struct {

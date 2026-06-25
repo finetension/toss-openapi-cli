@@ -32,6 +32,7 @@ type Dependencies struct {
 	TokenIssuer  auth.TokenIssuer
 	AccountAPI   AccountAPI
 	MarketData   MarketDataAPI
+	MarketInfo   MarketInfoAPI
 	AssetAPI     AssetAPI
 	StockInfo    StockInfoAPI
 	OrderInfo    OrderInfoAPI
@@ -47,6 +48,8 @@ type MarketDataAPI interface {
 	GetPrices(ctx context.Context, symbols string) (invest.PricesResponse, error)
 	GetOrderbook(ctx context.Context, symbol string) (invest.OrderbookResponse, error)
 	GetTrades(ctx context.Context, symbol string, count int) (invest.TradesResponse, error)
+	GetPriceLimit(ctx context.Context, symbol string) (invest.PriceLimitResponse, error)
+	GetCandles(ctx context.Context, params invest.CandleParams) (invest.CandlesResponse, error)
 }
 
 type AssetAPI interface {
@@ -56,6 +59,11 @@ type AssetAPI interface {
 type StockInfoAPI interface {
 	GetStocks(ctx context.Context, symbols string) (invest.StocksResponse, error)
 	GetStockWarnings(ctx context.Context, symbol string) (invest.StockWarningsResponse, error)
+}
+
+type MarketInfoAPI interface {
+	GetExchangeRate(ctx context.Context, params invest.ExchangeRateParams) (invest.ExchangeRateResponse, error)
+	GetMarketCalendar(ctx context.Context, market string, date string) (invest.MarketCalendarResponse, error)
 }
 
 type OrderInfoAPI interface {
@@ -156,6 +164,7 @@ func newInvestCommand(deps Dependencies) *cobra.Command {
 	cmd.AddCommand(newInvestAssetCommand(deps))
 	cmd.AddCommand(newInvestAuthCommand(deps))
 	cmd.AddCommand(newInvestMarketDataCommand(deps))
+	cmd.AddCommand(newInvestMarketInfoCommand(deps))
 	cmd.AddCommand(newInvestOrderInfoCommand(deps))
 	cmd.AddCommand(newInvestOrderHistoryCommand(deps))
 	cmd.AddCommand(newInvestOrderCommand(deps))
@@ -259,6 +268,8 @@ func newInvestMarketDataCommand(deps Dependencies) *cobra.Command {
 		Short: "Read Toss Invest market data.",
 	}
 	cmd.AddCommand(newInvestMarketDataOrderbookCommand(deps))
+	cmd.AddCommand(newInvestMarketDataCandlesCommand(deps))
+	cmd.AddCommand(newInvestMarketDataPriceLimitsCommand(deps))
 	cmd.AddCommand(newInvestMarketDataPricesCommand(deps))
 	cmd.AddCommand(newInvestMarketDataTradesCommand(deps))
 	return cmd
@@ -365,6 +376,190 @@ func newInvestMarketDataTradesCommand(deps Dependencies) *cobra.Command {
 	}
 	cmd.Flags().StringVar(&symbol, "symbol", "", "Toss Invest symbol.")
 	cmd.Flags().IntVar(&count, "count", 0, "Trade count.")
+	return cmd
+}
+
+func newInvestMarketDataPriceLimitsCommand(deps Dependencies) *cobra.Command {
+	var symbol string
+
+	cmd := &cobra.Command{
+		Use:   "price-limits",
+		Short: "Get price limits for a symbol.",
+		Args: func(cmd *cobra.Command, args []string) error {
+			if len(args) > 0 {
+				return apperr.Usage("market-data price-limits does not accept arguments")
+			}
+			if strings.TrimSpace(symbol) == "" {
+				return apperr.Usage("--symbol is required")
+			}
+			return nil
+		},
+		RunE: func(cmd *cobra.Command, args []string) error {
+			marketData := deps.MarketData
+			if marketData == nil {
+				marketData = invest.NewClient("", nil)
+			}
+			limits, err := marketData.GetPriceLimit(context.Background(), strings.TrimSpace(symbol))
+			if err != nil {
+				return err
+			}
+			if err := output.WriteJSON(cmd.OutOrStdout(), limits); err != nil {
+				return apperr.Unexpected(err)
+			}
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&symbol, "symbol", "", "Toss Invest symbol.")
+	return cmd
+}
+
+func newInvestMarketDataCandlesCommand(deps Dependencies) *cobra.Command {
+	var symbol string
+	var interval string
+	var count int
+	var before string
+	var adjusted bool
+
+	cmd := &cobra.Command{
+		Use:   "candles",
+		Short: "Get candles for a symbol.",
+		Args: func(cmd *cobra.Command, args []string) error {
+			if len(args) > 0 {
+				return apperr.Usage("market-data candles does not accept arguments")
+			}
+			if strings.TrimSpace(symbol) == "" {
+				return apperr.Usage("--symbol is required")
+			}
+			if strings.TrimSpace(interval) == "" {
+				return apperr.Usage("--interval is required")
+			}
+			return nil
+		},
+		RunE: func(cmd *cobra.Command, args []string) error {
+			marketData := deps.MarketData
+			if marketData == nil {
+				marketData = invest.NewClient("", nil)
+			}
+			params := invest.CandleParams{
+				Symbol:   strings.TrimSpace(symbol),
+				Interval: strings.TrimSpace(interval),
+				Count:    count,
+				Before:   strings.TrimSpace(before),
+			}
+			if cmd.Flags().Changed("adjusted") {
+				params.Adjusted = &adjusted
+			}
+			candles, err := marketData.GetCandles(context.Background(), params)
+			if err != nil {
+				return err
+			}
+			if err := output.WriteJSON(cmd.OutOrStdout(), candles); err != nil {
+				return apperr.Unexpected(err)
+			}
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&symbol, "symbol", "", "Toss Invest symbol.")
+	cmd.Flags().StringVar(&interval, "interval", "", "Candle interval.")
+	cmd.Flags().IntVar(&count, "count", 0, "Candle count.")
+	cmd.Flags().StringVar(&before, "before", "", "Exclusive upper bound timestamp.")
+	cmd.Flags().BoolVar(&adjusted, "adjusted", false, "Request adjusted prices.")
+	return cmd
+}
+
+func newInvestMarketInfoCommand(deps Dependencies) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "market-info",
+		Short: "Read Toss Invest market information.",
+	}
+	cmd.AddCommand(newInvestMarketInfoExchangeRateCommand(deps))
+	cmd.AddCommand(newInvestMarketInfoCalendarCommand(deps))
+	return cmd
+}
+
+func newInvestMarketInfoExchangeRateCommand(deps Dependencies) *cobra.Command {
+	var baseCurrency string
+	var quoteCurrency string
+	var dateTime string
+
+	cmd := &cobra.Command{
+		Use:   "exchange-rate",
+		Short: "Get an exchange rate.",
+		Args: func(cmd *cobra.Command, args []string) error {
+			if len(args) > 0 {
+				return apperr.Usage("market-info exchange-rate does not accept arguments")
+			}
+			if strings.TrimSpace(baseCurrency) == "" {
+				return apperr.Usage("--base-currency is required")
+			}
+			if strings.TrimSpace(quoteCurrency) == "" {
+				return apperr.Usage("--quote-currency is required")
+			}
+			return nil
+		},
+		RunE: func(cmd *cobra.Command, args []string) error {
+			marketInfo := deps.MarketInfo
+			if marketInfo == nil {
+				marketInfo = invest.NewClient("", nil)
+			}
+			rate, err := marketInfo.GetExchangeRate(context.Background(), invest.ExchangeRateParams{
+				BaseCurrency:  strings.ToUpper(strings.TrimSpace(baseCurrency)),
+				QuoteCurrency: strings.ToUpper(strings.TrimSpace(quoteCurrency)),
+				DateTime:      strings.TrimSpace(dateTime),
+			})
+			if err != nil {
+				return err
+			}
+			if err := output.WriteJSON(cmd.OutOrStdout(), rate); err != nil {
+				return apperr.Unexpected(err)
+			}
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&baseCurrency, "base-currency", "", "Base currency.")
+	cmd.Flags().StringVar(&quoteCurrency, "quote-currency", "", "Quote currency.")
+	cmd.Flags().StringVar(&dateTime, "date-time", "", "Exchange-rate timestamp.")
+	return cmd
+}
+
+func newInvestMarketInfoCalendarCommand(deps Dependencies) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "calendar",
+		Short: "Get market calendars.",
+	}
+	cmd.AddCommand(newInvestMarketInfoCalendarMarketCommand(deps, "kr", "KR"))
+	cmd.AddCommand(newInvestMarketInfoCalendarMarketCommand(deps, "us", "US"))
+	return cmd
+}
+
+func newInvestMarketInfoCalendarMarketCommand(deps Dependencies, use string, market string) *cobra.Command {
+	var date string
+
+	cmd := &cobra.Command{
+		Use:   use,
+		Short: "Get " + market + " market calendar.",
+		Args: func(cmd *cobra.Command, args []string) error {
+			if len(args) > 0 {
+				return apperr.Usage("market-info calendar " + use + " does not accept arguments")
+			}
+			return nil
+		},
+		RunE: func(cmd *cobra.Command, args []string) error {
+			marketInfo := deps.MarketInfo
+			if marketInfo == nil {
+				marketInfo = invest.NewClient("", nil)
+			}
+			calendar, err := marketInfo.GetMarketCalendar(context.Background(), market, strings.TrimSpace(date))
+			if err != nil {
+				return err
+			}
+			if err := output.WriteJSON(cmd.OutOrStdout(), calendar); err != nil {
+				return apperr.Unexpected(err)
+			}
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&date, "date", "", "Calendar date in YYYY-MM-DD.")
 	return cmd
 }
 

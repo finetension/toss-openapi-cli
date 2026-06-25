@@ -860,3 +860,122 @@ func TestGetStockWarnings(t *testing.T) {
 		t.Fatalf("result = %s", got.Result)
 	}
 }
+
+func TestGetPriceLimit(t *testing.T) {
+	var gotPath string
+	var gotSymbol string
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.Path
+		gotSymbol = r.URL.Query().Get("symbol")
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"result":{"currency":"USD","upperLimitPrice":null,"lowerLimitPrice":null}}`))
+	}))
+	defer server.Close()
+
+	client := NewClient(server.URL, server.Client())
+	got, err := client.GetPriceLimit(context.Background(), "AAPL")
+	if err != nil {
+		t.Fatalf("GetPriceLimit err = %v", err)
+	}
+	if gotPath != "/api/v1/price-limits" || gotSymbol != "AAPL" {
+		t.Fatalf("path=%q symbol=%q", gotPath, gotSymbol)
+	}
+	if string(got.Result) != `{"currency":"USD","upperLimitPrice":null,"lowerLimitPrice":null}` {
+		t.Fatalf("result = %s", got.Result)
+	}
+}
+
+func TestGetCandles(t *testing.T) {
+	var gotPath string
+	var gotQuery string
+	adjusted := false
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.Path
+		gotQuery = r.URL.RawQuery
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"result":{"candles":[{"closePrice":"185.70"}],"nextBefore":null}}`))
+	}))
+	defer server.Close()
+
+	client := NewClient(server.URL, server.Client())
+	got, err := client.GetCandles(context.Background(), CandleParams{
+		Symbol:   "AAPL",
+		Interval: "1d",
+		Count:    10,
+		Before:   "2026-03-25T09:00:00+09:00",
+		Adjusted: &adjusted,
+	})
+	if err != nil {
+		t.Fatalf("GetCandles err = %v", err)
+	}
+	values, err := url.ParseQuery(gotQuery)
+	if err != nil {
+		t.Fatalf("ParseQuery err = %v", err)
+	}
+	if gotPath != "/api/v1/candles" || values.Get("symbol") != "AAPL" || values.Get("interval") != "1d" || values.Get("count") != "10" || values.Get("before") != "2026-03-25T09:00:00+09:00" || values.Get("adjusted") != "false" {
+		t.Fatalf("path=%q query=%q", gotPath, gotQuery)
+	}
+	if string(got.Result) != `{"candles":[{"closePrice":"185.70"}],"nextBefore":null}` {
+		t.Fatalf("result = %s", got.Result)
+	}
+}
+
+func TestGetExchangeRate(t *testing.T) {
+	var gotPath string
+	var gotQuery string
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.Path
+		gotQuery = r.URL.RawQuery
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"result":{"baseCurrency":"USD","quoteCurrency":"KRW","rate":"1380.5"}}`))
+	}))
+	defer server.Close()
+
+	client := NewClient(server.URL, server.Client())
+	got, err := client.GetExchangeRate(context.Background(), ExchangeRateParams{
+		BaseCurrency:  "USD",
+		QuoteCurrency: "KRW",
+		DateTime:      "2026-03-25T09:30:00+09:00",
+	})
+	if err != nil {
+		t.Fatalf("GetExchangeRate err = %v", err)
+	}
+	values, err := url.ParseQuery(gotQuery)
+	if err != nil {
+		t.Fatalf("ParseQuery err = %v", err)
+	}
+	if gotPath != "/api/v1/exchange-rate" || values.Get("baseCurrency") != "USD" || values.Get("quoteCurrency") != "KRW" || values.Get("dateTime") != "2026-03-25T09:30:00+09:00" {
+		t.Fatalf("path=%q query=%q", gotPath, gotQuery)
+	}
+	if string(got.Result) != `{"baseCurrency":"USD","quoteCurrency":"KRW","rate":"1380.5"}` {
+		t.Fatalf("result = %s", got.Result)
+	}
+}
+
+func TestGetMarketCalendar(t *testing.T) {
+	var gotPath string
+	var gotDate string
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.Path
+		gotDate = r.URL.Query().Get("date")
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"result":{"today":{"date":"2026-03-25"}}}`))
+	}))
+	defer server.Close()
+
+	client := NewClient(server.URL, server.Client())
+	got, err := client.GetMarketCalendar(context.Background(), "US", "2026-03-25")
+	if err != nil {
+		t.Fatalf("GetMarketCalendar err = %v", err)
+	}
+	if gotPath != "/api/v1/market-calendar/US" || gotDate != "2026-03-25" {
+		t.Fatalf("path=%q date=%q", gotPath, gotDate)
+	}
+	if string(got.Result) != `{"today":{"date":"2026-03-25"}}` {
+		t.Fatalf("result = %s", got.Result)
+	}
+}

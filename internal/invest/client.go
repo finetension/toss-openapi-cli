@@ -84,6 +84,36 @@ type StockWarningsResponse struct {
 	Result json.RawMessage `json:"result"`
 }
 
+type PriceLimitResponse struct {
+	Result json.RawMessage `json:"result"`
+}
+
+type CandleParams struct {
+	Symbol   string
+	Interval string
+	Count    int
+	Before   string
+	Adjusted *bool
+}
+
+type CandlesResponse struct {
+	Result json.RawMessage `json:"result"`
+}
+
+type ExchangeRateParams struct {
+	BaseCurrency  string
+	QuoteCurrency string
+	DateTime      string
+}
+
+type ExchangeRateResponse struct {
+	Result json.RawMessage `json:"result"`
+}
+
+type MarketCalendarResponse struct {
+	Result json.RawMessage `json:"result"`
+}
+
 type BuyingPowerResponse struct {
 	Result BuyingPower `json:"result"`
 }
@@ -288,6 +318,94 @@ func (c *Client) GetStockWarnings(ctx context.Context, symbol string) (StockWarn
 	var out StockWarningsResponse
 	if err := c.doJSON(req, &out); err != nil {
 		return StockWarningsResponse{}, err
+	}
+	return out, nil
+}
+
+func (c *Client) GetPriceLimit(ctx context.Context, symbol string) (PriceLimitResponse, error) {
+	values := url.Values{}
+	values.Set("symbol", symbol)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+"/api/v1/price-limits?"+values.Encode(), nil)
+	if err != nil {
+		return PriceLimitResponse{}, err
+	}
+	req.Header.Set("Accept", "application/json")
+
+	var out PriceLimitResponse
+	if err := c.doJSON(req, &out); err != nil {
+		return PriceLimitResponse{}, err
+	}
+	return out, nil
+}
+
+func (c *Client) GetCandles(ctx context.Context, params CandleParams) (CandlesResponse, error) {
+	values := url.Values{}
+	values.Set("symbol", params.Symbol)
+	values.Set("interval", params.Interval)
+	if params.Count > 0 {
+		values.Set("count", strconv.Itoa(params.Count))
+	}
+	if params.Before != "" {
+		values.Set("before", params.Before)
+	}
+	if params.Adjusted != nil {
+		values.Set("adjusted", strconv.FormatBool(*params.Adjusted))
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+"/api/v1/candles?"+values.Encode(), nil)
+	if err != nil {
+		return CandlesResponse{}, err
+	}
+	req.Header.Set("Accept", "application/json")
+
+	var out CandlesResponse
+	if err := c.doJSON(req, &out); err != nil {
+		return CandlesResponse{}, err
+	}
+	return out, nil
+}
+
+func (c *Client) GetExchangeRate(ctx context.Context, params ExchangeRateParams) (ExchangeRateResponse, error) {
+	values := url.Values{}
+	values.Set("baseCurrency", params.BaseCurrency)
+	values.Set("quoteCurrency", params.QuoteCurrency)
+	if params.DateTime != "" {
+		values.Set("dateTime", params.DateTime)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+"/api/v1/exchange-rate?"+values.Encode(), nil)
+	if err != nil {
+		return ExchangeRateResponse{}, err
+	}
+	req.Header.Set("Accept", "application/json")
+
+	var out ExchangeRateResponse
+	if err := c.doJSON(req, &out); err != nil {
+		return ExchangeRateResponse{}, err
+	}
+	return out, nil
+}
+
+func (c *Client) GetMarketCalendar(ctx context.Context, market string, date string) (MarketCalendarResponse, error) {
+	values := url.Values{}
+	if date != "" {
+		values.Set("date", date)
+	}
+
+	path := c.baseURL + "/api/v1/market-calendar/" + url.PathEscape(market)
+	if encoded := values.Encode(); encoded != "" {
+		path += "?" + encoded
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, path, nil)
+	if err != nil {
+		return MarketCalendarResponse{}, err
+	}
+	req.Header.Set("Accept", "application/json")
+
+	var out MarketCalendarResponse
+	if err := c.doJSON(req, &out); err != nil {
+		return MarketCalendarResponse{}, err
 	}
 	return out, nil
 }
