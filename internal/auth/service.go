@@ -1,8 +1,11 @@
 package auth
 
 import (
+	"context"
 	"os"
 	"time"
+
+	"github.com/finetension/toss-openapi-cli/internal/invest"
 )
 
 type EnvLookup func(key string) (string, bool)
@@ -17,6 +20,10 @@ type Service struct {
 	now   func() time.Time
 }
 
+type TokenIssuer interface {
+	IssueOAuth2Token(ctx context.Context, input invest.OAuth2TokenRequest) (invest.OAuth2TokenResponse, error)
+}
+
 func NewService(store SecretStore, env EnvLookup) *Service {
 	if store == nil {
 		store = KeyringSecretStore{}
@@ -29,6 +36,27 @@ func NewService(store SecretStore, env EnvLookup) *Service {
 		env:   env,
 		now:   time.Now,
 	}
+}
+
+func (s *Service) Login(ctx context.Context, issuer TokenIssuer, credentials Credentials) (Status, error) {
+	token, err := issuer.IssueOAuth2Token(ctx, invest.OAuth2TokenRequest{
+		ClientID:     credentials.ClientID,
+		ClientSecret: credentials.ClientSecret,
+	})
+	if err != nil {
+		return Status{}, err
+	}
+
+	if err := StoreCredentials(s.store, credentials); err != nil {
+		return Status{}, err
+	}
+	if err := StoreToken(s.store, CachedToken{
+		AccessToken: token.AccessToken,
+		ExpiresAt:   s.now().Add(time.Duration(token.ExpiresIn) * time.Second).UTC(),
+	}); err != nil {
+		return Status{}, err
+	}
+	return s.Status(), nil
 }
 
 type Status struct {

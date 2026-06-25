@@ -1,11 +1,13 @@
 package cli
 
 import (
+	"context"
 	"encoding/json"
 	"testing"
 
 	"github.com/finetension/toss-openapi-cli/internal/apperr"
 	"github.com/finetension/toss-openapi-cli/internal/auth"
+	"github.com/finetension/toss-openapi-cli/internal/invest"
 )
 
 func TestVersionOutputsJSON(t *testing.T) {
@@ -98,4 +100,75 @@ func TestInvestAuthStatusOutputsJSON(t *testing.T) {
 	if got.Token.Configured || got.Token.Valid || got.Token.Source != "missing" {
 		t.Fatalf("token = %+v", got.Token)
 	}
+}
+
+func TestInvestAuthLoginWithFlagsStoresCredentialsAndOutputsStatus(t *testing.T) {
+	store := auth.NewMemorySecretStore()
+	issuer := &fakeTokenIssuer{
+		response: invest.OAuth2TokenResponse{
+			AccessToken: "token",
+			TokenType:   "Bearer",
+			ExpiresIn:   3600,
+		},
+	}
+
+	stdout, stderr, exitCode := ExecuteForTestWithDeps(Dependencies{
+		SecretStore: store,
+		TokenIssuer: issuer,
+	}, "invest", "auth", "login", "--client-id", "client-id", "--client-secret", "client-secret")
+
+	if exitCode != apperr.ExitSuccess {
+		t.Fatalf("exitCode = %d, want %d; stdout=%s stderr=%s", exitCode, apperr.ExitSuccess, stdout, stderr)
+	}
+	if stderr != "" {
+		t.Fatalf("stderr = %q, want empty", stderr)
+	}
+	if issuer.input.ClientID != "client-id" || issuer.input.ClientSecret != "client-secret" {
+		t.Fatalf("issuer input = %+v", issuer.input)
+	}
+
+	var got struct {
+		Credentials struct {
+			Configured bool   `json:"configured"`
+			Source     string `json:"source"`
+		} `json:"credentials"`
+		Token struct {
+			Configured bool   `json:"configured"`
+			Valid      bool   `json:"valid"`
+			Source     string `json:"source"`
+			ExpiresAt  string `json:"expiresAt"`
+		} `json:"token"`
+	}
+	if err := json.Unmarshal([]byte(stdout), &got); err != nil {
+		t.Fatalf("stdout is not valid JSON: %v\n%s", err, stdout)
+	}
+	if !got.Credentials.Configured || got.Credentials.Source != "keyring" {
+		t.Fatalf("credentials = %+v", got.Credentials)
+	}
+	if !got.Token.Configured || !got.Token.Valid || got.Token.Source != "keyring" || got.Token.ExpiresAt == "" {
+		t.Fatalf("token = %+v", got.Token)
+	}
+
+	encodedCredentials, err := store.Get(auth.KeyringService, auth.InvestCredentials)
+	if err != nil {
+		t.Fatalf("stored credentials err = %v", err)
+	}
+	credentials, err := auth.DecodeCredentials(encodedCredentials)
+	if err != nil {
+		t.Fatalf("DecodeCredentials err = %v", err)
+	}
+	if credentials.ClientID != "client-id" || credentials.ClientSecret != "client-secret" {
+		t.Fatalf("stored credentials = %+v", credentials)
+	}
+}
+
+type fakeTokenIssuer struct {
+	input    invest.OAuth2TokenRequest
+	response invest.OAuth2TokenResponse
+	err      error
+}
+
+func (f *fakeTokenIssuer) IssueOAuth2Token(ctx context.Context, input invest.OAuth2TokenRequest) (invest.OAuth2TokenResponse, error) {
+	f.input = input
+	return f.response, f.err
 }

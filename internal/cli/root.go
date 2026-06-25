@@ -1,8 +1,11 @@
 package cli
 
 import (
+	"bufio"
 	"bytes"
+	"context"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"strings"
@@ -11,6 +14,7 @@ import (
 
 	"github.com/finetension/toss-openapi-cli/internal/apperr"
 	"github.com/finetension/toss-openapi-cli/internal/auth"
+	"github.com/finetension/toss-openapi-cli/internal/invest"
 	"github.com/finetension/toss-openapi-cli/internal/output"
 	"github.com/finetension/toss-openapi-cli/internal/version"
 )
@@ -24,6 +28,7 @@ type IOStreams struct {
 type Dependencies struct {
 	SecretStore auth.SecretStore
 	EnvLookup   auth.EnvLookup
+	TokenIssuer auth.TokenIssuer
 }
 
 func Execute() int {
@@ -112,7 +117,46 @@ func newInvestAuthCommand(deps Dependencies) *cobra.Command {
 		Use:   "auth",
 		Short: "Manage Toss Invest authentication.",
 	}
+	cmd.AddCommand(newInvestAuthLoginCommand(deps))
 	cmd.AddCommand(newInvestAuthStatusCommand(deps))
+	return cmd
+}
+
+func newInvestAuthLoginCommand(deps Dependencies) *cobra.Command {
+	var clientID string
+	var clientSecret string
+
+	cmd := &cobra.Command{
+		Use:   "login",
+		Short: "Configure Toss Invest credentials.",
+		Args: func(cmd *cobra.Command, args []string) error {
+			if len(args) > 0 {
+				return apperr.Usage("auth login does not accept arguments")
+			}
+			return nil
+		},
+		RunE: func(cmd *cobra.Command, args []string) error {
+			credentials, err := readLoginCredentials(cmd, clientID, clientSecret)
+			if err != nil {
+				return err
+			}
+			service := auth.NewService(deps.SecretStore, deps.EnvLookup)
+			issuer := deps.TokenIssuer
+			if issuer == nil {
+				issuer = invest.NewClient("", nil)
+			}
+			status, err := service.Login(context.Background(), issuer, credentials)
+			if err != nil {
+				return err
+			}
+			if err := output.WriteJSON(cmd.OutOrStdout(), status); err != nil {
+				return apperr.Unexpected(err)
+			}
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&clientID, "client-id", "", "Toss Invest client ID.")
+	cmd.Flags().StringVar(&clientSecret, "client-secret", "", "Toss Invest client secret.")
 	return cmd
 }
 
@@ -134,6 +178,36 @@ func newInvestAuthStatusCommand(deps Dependencies) *cobra.Command {
 			return nil
 		},
 	}
+}
+
+func readLoginCredentials(cmd *cobra.Command, clientID string, clientSecret string) (auth.Credentials, error) {
+	clientID = strings.TrimSpace(clientID)
+	clientSecret = strings.TrimSpace(clientSecret)
+	reader := bufio.NewReader(cmd.InOrStdin())
+
+	if clientID == "" {
+		_, _ = fmt.Fprint(cmd.ErrOrStderr(), "Client ID: ")
+		line, err := reader.ReadString('\n')
+		if err != nil && !errors.Is(err, io.EOF) {
+			return auth.Credentials{}, apperr.Wrap(apperr.CodeUsage, "Failed to read client ID", apperr.ExitUsage, err)
+		}
+		clientID = strings.TrimSpace(line)
+	}
+	if clientSecret == "" {
+		_, _ = fmt.Fprint(cmd.ErrOrStderr(), "Client Secret: ")
+		line, err := reader.ReadString('\n')
+		if err != nil && !errors.Is(err, io.EOF) {
+			return auth.Credentials{}, apperr.Wrap(apperr.CodeUsage, "Failed to read client secret", apperr.ExitUsage, err)
+		}
+		clientSecret = strings.TrimSpace(line)
+	}
+	if clientID == "" {
+		return auth.Credentials{}, apperr.Usage("client ID is required")
+	}
+	if clientSecret == "" {
+		return auth.Credentials{}, apperr.Usage("client secret is required")
+	}
+	return auth.Credentials{ClientID: clientID, ClientSecret: clientSecret}, nil
 }
 
 func normalizeCobraError(err error) error {
