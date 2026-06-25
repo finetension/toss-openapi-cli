@@ -30,10 +30,15 @@ type Dependencies struct {
 	EnvLookup   auth.EnvLookup
 	TokenIssuer auth.TokenIssuer
 	AccountAPI  AccountAPI
+	MarketData  MarketDataAPI
 }
 
 type AccountAPI interface {
 	GetAccounts(ctx context.Context, accessToken string) (invest.AccountsResponse, error)
+}
+
+type MarketDataAPI interface {
+	GetPrices(ctx context.Context, symbols string) (invest.PricesResponse, error)
 }
 
 func Execute() int {
@@ -115,6 +120,7 @@ func newInvestCommand(deps Dependencies) *cobra.Command {
 	}
 	cmd.AddCommand(newInvestAccountCommand(deps))
 	cmd.AddCommand(newInvestAuthCommand(deps))
+	cmd.AddCommand(newInvestMarketDataCommand(deps))
 	return cmd
 }
 
@@ -162,6 +168,49 @@ func newInvestAccountListCommand(deps Dependencies) *cobra.Command {
 			return nil
 		},
 	}
+}
+
+func newInvestMarketDataCommand(deps Dependencies) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "market-data",
+		Short: "Read Toss Invest market data.",
+	}
+	cmd.AddCommand(newInvestMarketDataPricesCommand(deps))
+	return cmd
+}
+
+func newInvestMarketDataPricesCommand(deps Dependencies) *cobra.Command {
+	var symbols string
+
+	cmd := &cobra.Command{
+		Use:   "prices",
+		Short: "Get current prices for one or more symbols.",
+		Args: func(cmd *cobra.Command, args []string) error {
+			if len(args) > 0 {
+				return apperr.Usage("market-data prices does not accept arguments")
+			}
+			if strings.TrimSpace(symbols) == "" {
+				return apperr.Usage("--symbols is required")
+			}
+			return nil
+		},
+		RunE: func(cmd *cobra.Command, args []string) error {
+			marketData := deps.MarketData
+			if marketData == nil {
+				marketData = invest.NewClient("", nil)
+			}
+			prices, err := marketData.GetPrices(context.Background(), strings.TrimSpace(symbols))
+			if err != nil {
+				return err
+			}
+			if err := output.WriteJSON(cmd.OutOrStdout(), prices); err != nil {
+				return apperr.Unexpected(err)
+			}
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&symbols, "symbols", "", "Comma-separated Toss Invest symbols.")
+	return cmd
 }
 
 func newInvestAuthCommand(deps Dependencies) *cobra.Command {

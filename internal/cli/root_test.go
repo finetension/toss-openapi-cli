@@ -337,6 +337,70 @@ func TestInvestAccountListMissingCredentials(t *testing.T) {
 	}
 }
 
+func TestInvestMarketDataPricesOutputsPrices(t *testing.T) {
+	marketData := &fakeMarketDataAPI{
+		response: invest.PricesResponse{
+			Result: []invest.Price{
+				{
+					Symbol:    "AAPL",
+					Timestamp: "2026-03-25T22:30:00.456+09:00",
+					LastPrice: "185.70",
+					Currency:  "USD",
+				},
+			},
+		},
+	}
+
+	stdout, stderr, exitCode := ExecuteForTestWithDeps(Dependencies{
+		MarketData: marketData,
+	}, "invest", "market-data", "prices", "--symbols", "AAPL,MSFT")
+
+	if exitCode != apperr.ExitSuccess {
+		t.Fatalf("exitCode = %d, want %d; stdout=%s stderr=%s", exitCode, apperr.ExitSuccess, stdout, stderr)
+	}
+	if stderr != "" {
+		t.Fatalf("stderr = %q, want empty", stderr)
+	}
+	if marketData.symbols != "AAPL,MSFT" {
+		t.Fatalf("symbols = %q", marketData.symbols)
+	}
+
+	var got invest.PricesResponse
+	if err := json.Unmarshal([]byte(stdout), &got); err != nil {
+		t.Fatalf("stdout is not valid JSON: %v\n%s", err, stdout)
+	}
+	if len(got.Result) != 1 {
+		t.Fatalf("len(result) = %d", len(got.Result))
+	}
+	if got.Result[0].Symbol != "AAPL" || got.Result[0].LastPrice != "185.70" || got.Result[0].Currency != "USD" {
+		t.Fatalf("price = %+v", got.Result[0])
+	}
+}
+
+func TestInvestMarketDataPricesRequiresSymbols(t *testing.T) {
+	stdout, stderr, exitCode := ExecuteForTestWithDeps(Dependencies{
+		MarketData: &fakeMarketDataAPI{},
+	}, "invest", "market-data", "prices")
+
+	if exitCode != apperr.ExitUsage {
+		t.Fatalf("exitCode = %d, want %d; stdout=%s stderr=%s", exitCode, apperr.ExitUsage, stdout, stderr)
+	}
+	if stderr != "" {
+		t.Fatalf("stderr = %q, want empty", stderr)
+	}
+	var got struct {
+		Error struct {
+			Code string `json:"code"`
+		} `json:"error"`
+	}
+	if err := json.Unmarshal([]byte(stdout), &got); err != nil {
+		t.Fatalf("stdout is not valid JSON: %v\n%s", err, stdout)
+	}
+	if got.Error.Code != apperr.CodeUsage {
+		t.Fatalf("error code = %q", got.Error.Code)
+	}
+}
+
 type fakeTokenIssuer struct {
 	input    invest.OAuth2TokenRequest
 	response invest.OAuth2TokenResponse
@@ -356,5 +420,16 @@ type fakeAccountAPI struct {
 
 func (f *fakeAccountAPI) GetAccounts(ctx context.Context, accessToken string) (invest.AccountsResponse, error) {
 	f.accessToken = accessToken
+	return f.response, f.err
+}
+
+type fakeMarketDataAPI struct {
+	symbols  string
+	response invest.PricesResponse
+	err      error
+}
+
+func (f *fakeMarketDataAPI) GetPrices(ctx context.Context, symbols string) (invest.PricesResponse, error) {
+	f.symbols = symbols
 	return f.response, f.err
 }

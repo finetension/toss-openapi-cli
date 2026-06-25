@@ -56,6 +56,17 @@ type Account struct {
 	AccountType string `json:"accountType"`
 }
 
+type PricesResponse struct {
+	Result []Price `json:"result"`
+}
+
+type Price struct {
+	Symbol    string `json:"symbol"`
+	Timestamp string `json:"timestamp"`
+	LastPrice string `json:"lastPrice"`
+	Currency  string `json:"currency"`
+}
+
 type APIError struct {
 	StatusCode      int
 	Code            string
@@ -110,6 +121,23 @@ func (c *Client) GetAccounts(ctx context.Context, accessToken string) (AccountsR
 	var out AccountsResponse
 	if err := c.doJSON(req, &out); err != nil {
 		return AccountsResponse{}, err
+	}
+	return out, nil
+}
+
+func (c *Client) GetPrices(ctx context.Context, symbols string) (PricesResponse, error) {
+	values := url.Values{}
+	values.Set("symbols", symbols)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+"/api/v1/prices?"+values.Encode(), nil)
+	if err != nil {
+		return PricesResponse{}, err
+	}
+	req.Header.Set("Accept", "application/json")
+
+	var out PricesResponse
+	if err := c.doJSON(req, &out); err != nil {
+		return PricesResponse{}, err
 	}
 	return out, nil
 }

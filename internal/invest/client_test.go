@@ -157,3 +157,55 @@ func TestGetAccounts(t *testing.T) {
 		t.Fatalf("account = %+v", got.Result[0])
 	}
 }
+
+func TestGetPrices(t *testing.T) {
+	var gotMethod string
+	var gotPath string
+	var gotSymbols string
+	var gotAccept string
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotMethod = r.Method
+		gotPath = r.URL.Path
+		gotSymbols = r.URL.Query().Get("symbols")
+		gotAccept = r.Header.Get("Accept")
+
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(PricesResponse{
+			Result: []Price{
+				{
+					Symbol:    "AAPL",
+					Timestamp: "2026-03-25T22:30:00.456+09:00",
+					LastPrice: "185.70",
+					Currency:  "USD",
+				},
+			},
+		})
+	}))
+	defer server.Close()
+
+	client := NewClient(server.URL, server.Client())
+	got, err := client.GetPrices(context.Background(), "AAPL,MSFT")
+	if err != nil {
+		t.Fatalf("GetPrices err = %v", err)
+	}
+
+	if gotMethod != http.MethodGet {
+		t.Fatalf("method = %q, want %q", gotMethod, http.MethodGet)
+	}
+	if gotPath != "/api/v1/prices" {
+		t.Fatalf("path = %q, want %q", gotPath, "/api/v1/prices")
+	}
+	if gotSymbols != "AAPL,MSFT" {
+		t.Fatalf("symbols = %q", gotSymbols)
+	}
+	if gotAccept != "application/json" {
+		t.Fatalf("Accept = %q", gotAccept)
+	}
+	if len(got.Result) != 1 {
+		t.Fatalf("len(result) = %d", len(got.Result))
+	}
+	if got.Result[0].Symbol != "AAPL" || got.Result[0].LastPrice != "185.70" || got.Result[0].Currency != "USD" {
+		t.Fatalf("price = %+v", got.Result[0])
+	}
+}
