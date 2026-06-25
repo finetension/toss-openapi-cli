@@ -809,6 +809,105 @@ func TestInvestOrderCancelDryRunDoesNotRequireAuth(t *testing.T) {
 	}
 }
 
+func TestInvestAssetHoldingsOutputsHoldings(t *testing.T) {
+	assetAPI := &fakeAssetAPI{
+		response: invest.HoldingsResponse{
+			Result: json.RawMessage(`{"items":[{"symbol":"AAPL","quantity":"10"}]}`),
+		},
+	}
+
+	stdout, stderr, exitCode := ExecuteForTestWithDeps(Dependencies{
+		SecretStore: auth.NewMemorySecretStore(),
+		EnvLookup: func(key string) (string, bool) {
+			if key == "TOSS_INVEST_ACCESS_TOKEN" {
+				return "env-token", true
+			}
+			return "", false
+		},
+		AssetAPI: assetAPI,
+	}, "invest", "asset", "holdings", "--account-seq", "1", "--symbol", "AAPL")
+
+	if exitCode != apperr.ExitSuccess {
+		t.Fatalf("exitCode = %d, want %d; stdout=%s stderr=%s", exitCode, apperr.ExitSuccess, stdout, stderr)
+	}
+	if stderr != "" {
+		t.Fatalf("stderr = %q, want empty", stderr)
+	}
+	if assetAPI.accessToken != "env-token" || assetAPI.accountSeq != 1 || assetAPI.symbol != "AAPL" {
+		t.Fatalf("assetAPI = %+v", assetAPI)
+	}
+
+	var got invest.HoldingsResponse
+	if err := json.Unmarshal([]byte(stdout), &got); err != nil {
+		t.Fatalf("stdout is not valid JSON: %v\n%s", err, stdout)
+	}
+	if compactJSON(t, got.Result) != compactJSON(t, assetAPI.response.Result) {
+		t.Fatalf("result = %s", got.Result)
+	}
+}
+
+func TestInvestAssetHoldingsRequiresAccountSeq(t *testing.T) {
+	stdout, stderr, exitCode := ExecuteForTestWithDeps(Dependencies{
+		SecretStore: auth.NewMemorySecretStore(),
+		AssetAPI:    &fakeAssetAPI{},
+	}, "invest", "asset", "holdings")
+
+	if exitCode != apperr.ExitUsage {
+		t.Fatalf("exitCode = %d, want %d; stdout=%s stderr=%s", exitCode, apperr.ExitUsage, stdout, stderr)
+	}
+	if stderr != "" {
+		t.Fatalf("stderr = %q, want empty", stderr)
+	}
+	var got struct {
+		Error struct {
+			Code string `json:"code"`
+		} `json:"error"`
+	}
+	if err := json.Unmarshal([]byte(stdout), &got); err != nil {
+		t.Fatalf("stdout is not valid JSON: %v\n%s", err, stdout)
+	}
+	if got.Error.Code != apperr.CodeUsage {
+		t.Fatalf("error code = %q", got.Error.Code)
+	}
+}
+
+func TestInvestOrderInfoCommissionsOutputsCommissions(t *testing.T) {
+	orderInfo := &fakeOrderInfoAPI{
+		commissionsResponse: invest.CommissionsResponse{
+			Result: json.RawMessage(`[{"marketCountry":"US","commissionRate":"0.1"}]`),
+		},
+	}
+
+	stdout, stderr, exitCode := ExecuteForTestWithDeps(Dependencies{
+		SecretStore: auth.NewMemorySecretStore(),
+		EnvLookup: func(key string) (string, bool) {
+			if key == "TOSS_INVEST_ACCESS_TOKEN" {
+				return "env-token", true
+			}
+			return "", false
+		},
+		OrderInfo: orderInfo,
+	}, "invest", "order-info", "commissions", "--account-seq", "1")
+
+	if exitCode != apperr.ExitSuccess {
+		t.Fatalf("exitCode = %d, want %d; stdout=%s stderr=%s", exitCode, apperr.ExitSuccess, stdout, stderr)
+	}
+	if stderr != "" {
+		t.Fatalf("stderr = %q, want empty", stderr)
+	}
+	if orderInfo.accessToken != "env-token" || orderInfo.accountSeq != 1 {
+		t.Fatalf("orderInfo = %+v", orderInfo)
+	}
+
+	var got invest.CommissionsResponse
+	if err := json.Unmarshal([]byte(stdout), &got); err != nil {
+		t.Fatalf("stdout is not valid JSON: %v\n%s", err, stdout)
+	}
+	if compactJSON(t, got.Result) != compactJSON(t, orderInfo.commissionsResponse.Result) {
+		t.Fatalf("result = %s", got.Result)
+	}
+}
+
 type fakeTokenIssuer struct {
 	input    invest.OAuth2TokenRequest
 	response invest.OAuth2TokenResponse
@@ -842,6 +941,21 @@ func (f *fakeMarketDataAPI) GetPrices(ctx context.Context, symbols string) (inve
 	return f.response, f.err
 }
 
+type fakeAssetAPI struct {
+	accessToken string
+	accountSeq  int64
+	symbol      string
+	response    invest.HoldingsResponse
+	err         error
+}
+
+func (f *fakeAssetAPI) GetHoldings(ctx context.Context, accessToken string, accountSeq int64, symbol string) (invest.HoldingsResponse, error) {
+	f.accessToken = accessToken
+	f.accountSeq = accountSeq
+	f.symbol = symbol
+	return f.response, f.err
+}
+
 type fakeOrderInfoAPI struct {
 	accessToken              string
 	accountSeq               int64
@@ -849,6 +963,7 @@ type fakeOrderInfoAPI struct {
 	symbol                   string
 	buyingPowerResponse      invest.BuyingPowerResponse
 	sellableQuantityResponse invest.SellableQuantityResponse
+	commissionsResponse      invest.CommissionsResponse
 	err                      error
 }
 
@@ -864,6 +979,12 @@ func (f *fakeOrderInfoAPI) GetSellableQuantity(ctx context.Context, accessToken 
 	f.accountSeq = accountSeq
 	f.symbol = symbol
 	return f.sellableQuantityResponse, f.err
+}
+
+func (f *fakeOrderInfoAPI) GetCommissions(ctx context.Context, accessToken string, accountSeq int64) (invest.CommissionsResponse, error) {
+	f.accessToken = accessToken
+	f.accountSeq = accountSeq
+	return f.commissionsResponse, f.err
 }
 
 type fakeOrderHistoryAPI struct {

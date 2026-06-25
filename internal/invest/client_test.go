@@ -547,3 +547,98 @@ func TestCancelOrder(t *testing.T) {
 		t.Fatalf("result = %s", got.Result)
 	}
 }
+
+func TestGetHoldings(t *testing.T) {
+	var gotMethod string
+	var gotPath string
+	var gotSymbol string
+	var gotAccept string
+	var gotAuthorization string
+	var gotAccount string
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotMethod = r.Method
+		gotPath = r.URL.Path
+		gotSymbol = r.URL.Query().Get("symbol")
+		gotAccept = r.Header.Get("Accept")
+		gotAuthorization = r.Header.Get("Authorization")
+		gotAccount = r.Header.Get("X-Tossinvest-Account")
+
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"result":{"items":[{"symbol":"AAPL","quantity":"10"}]}}`))
+	}))
+	defer server.Close()
+
+	client := NewClient(server.URL, server.Client())
+	got, err := client.GetHoldings(context.Background(), "access-token", 1, "AAPL")
+	if err != nil {
+		t.Fatalf("GetHoldings err = %v", err)
+	}
+
+	if gotMethod != http.MethodGet {
+		t.Fatalf("method = %q, want %q", gotMethod, http.MethodGet)
+	}
+	if gotPath != "/api/v1/holdings" {
+		t.Fatalf("path = %q, want %q", gotPath, "/api/v1/holdings")
+	}
+	if gotSymbol != "AAPL" {
+		t.Fatalf("symbol = %q", gotSymbol)
+	}
+	if gotAccept != "application/json" {
+		t.Fatalf("Accept = %q", gotAccept)
+	}
+	if gotAuthorization != "Bearer access-token" {
+		t.Fatalf("Authorization = %q", gotAuthorization)
+	}
+	if gotAccount != "1" {
+		t.Fatalf("X-Tossinvest-Account = %q", gotAccount)
+	}
+	if string(got.Result) != `{"items":[{"symbol":"AAPL","quantity":"10"}]}` {
+		t.Fatalf("result = %s", got.Result)
+	}
+}
+
+func TestGetCommissions(t *testing.T) {
+	var gotMethod string
+	var gotPath string
+	var gotAccept string
+	var gotAuthorization string
+	var gotAccount string
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotMethod = r.Method
+		gotPath = r.URL.Path
+		gotAccept = r.Header.Get("Accept")
+		gotAuthorization = r.Header.Get("Authorization")
+		gotAccount = r.Header.Get("X-Tossinvest-Account")
+
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"result":[{"marketCountry":"US","commissionRate":"0.1"}]}`))
+	}))
+	defer server.Close()
+
+	client := NewClient(server.URL, server.Client())
+	got, err := client.GetCommissions(context.Background(), "access-token", 1)
+	if err != nil {
+		t.Fatalf("GetCommissions err = %v", err)
+	}
+
+	if gotMethod != http.MethodGet {
+		t.Fatalf("method = %q, want %q", gotMethod, http.MethodGet)
+	}
+	if gotPath != "/api/v1/commissions" {
+		t.Fatalf("path = %q, want %q", gotPath, "/api/v1/commissions")
+	}
+	if gotAccept != "application/json" {
+		t.Fatalf("Accept = %q", gotAccept)
+	}
+	if gotAuthorization != "Bearer access-token" {
+		t.Fatalf("Authorization = %q", gotAuthorization)
+	}
+	if gotAccount != "1" {
+		t.Fatalf("X-Tossinvest-Account = %q", gotAccount)
+	}
+	if string(got.Result) != `[{"marketCountry":"US","commissionRate":"0.1"}]` {
+		t.Fatalf("result = %s", got.Result)
+	}
+}

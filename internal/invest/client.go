@@ -85,6 +85,14 @@ type SellableQuantity struct {
 	SellableQuantity string `json:"sellableQuantity"`
 }
 
+type HoldingsResponse struct {
+	Result json.RawMessage `json:"result"`
+}
+
+type CommissionsResponse struct {
+	Result json.RawMessage `json:"result"`
+}
+
 type OrderListParams struct {
 	Status string
 	Symbol string
@@ -227,6 +235,47 @@ func (c *Client) GetSellableQuantity(ctx context.Context, accessToken string, ac
 	var out SellableQuantityResponse
 	if err := c.doJSON(req, &out); err != nil {
 		return SellableQuantityResponse{}, err
+	}
+	return out, nil
+}
+
+func (c *Client) GetHoldings(ctx context.Context, accessToken string, accountSeq int64, symbol string) (HoldingsResponse, error) {
+	values := url.Values{}
+	if symbol != "" {
+		values.Set("symbol", symbol)
+	}
+
+	path := c.baseURL + "/api/v1/holdings"
+	if encoded := values.Encode(); encoded != "" {
+		path += "?" + encoded
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, path, nil)
+	if err != nil {
+		return HoldingsResponse{}, err
+	}
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("Authorization", "Bearer "+accessToken)
+	req.Header.Set("X-Tossinvest-Account", strconv.FormatInt(accountSeq, 10))
+
+	var out HoldingsResponse
+	if err := c.doJSON(req, &out); err != nil {
+		return HoldingsResponse{}, err
+	}
+	return out, nil
+}
+
+func (c *Client) GetCommissions(ctx context.Context, accessToken string, accountSeq int64) (CommissionsResponse, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+"/api/v1/commissions", nil)
+	if err != nil {
+		return CommissionsResponse{}, err
+	}
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("Authorization", "Bearer "+accessToken)
+	req.Header.Set("X-Tossinvest-Account", strconv.FormatInt(accountSeq, 10))
+
+	var out CommissionsResponse
+	if err := c.doJSON(req, &out); err != nil {
+		return CommissionsResponse{}, err
 	}
 	return out, nil
 }
