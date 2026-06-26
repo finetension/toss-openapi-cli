@@ -57,7 +57,14 @@ browser session reuse or undocumented internal APIs.
 
 ## Install From Source
 
-Public release installers are not published yet. For now, build locally:
+Public release artifacts are not published yet. After the first release, install
+with:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/finetension/toss-openapi-cli/main/install.sh | sh
+```
+
+Until then, build locally:
 
 ```sh
 go build -o bin/tosscli ./cmd/tosscli

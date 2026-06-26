@@ -44,9 +44,9 @@ Planned:
 
 - [ ] GitHub Release snapshot artifacts for macOS, Linux, and Windows
 - [ ] SHA256 checksums for release artifacts
-- [ ] `install.sh` for macOS/Linux
+- [x] `install.sh` for macOS/Linux
 - [ ] Version metadata in `tosscli version`
-- [ ] README install and verification flow
+- [x] README install and verification flow
 - [ ] Troubleshooting guide for auth, keyring, and token expiry issues
 - [ ] Public preview release notes
 

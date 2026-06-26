@@ -55,7 +55,14 @@ credential, token cache, account header, request construction, output formatting
 
 ## 소스에서 설치
 
-공개 릴리즈 설치 도구는 아직 배포하지 않았습니다. 현재는 로컬에서 빌드합니다.
+공개 릴리즈 artifact는 아직 배포하지 않았습니다. 첫 릴리즈 이후에는 다음 명령으로
+설치합니다.
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/finetension/toss-openapi-cli/main/install.sh | sh
+```
+
+그 전까지는 로컬에서 빌드합니다.
 
 ```sh
 go build -o bin/tosscli ./cmd/tosscli

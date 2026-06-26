@@ -52,7 +52,13 @@ formatting 放在一个可预测的工具中处理。
 
 ## 从源码安装
 
-公开发布安装器尚未发布。现在请在本地构建：
+公开 release artifacts 尚未发布。首次 release 之后，可以使用以下命令安装：
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/finetension/toss-openapi-cli/main/install.sh | sh
+```
+
+在此之前，请在本地构建：
 
 ```sh
 go build -o bin/tosscli ./cmd/tosscli
