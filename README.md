@@ -105,15 +105,22 @@ npx skills add finetension/tosscli-skills
 
 ## Authentication
 
-The invest API uses OAuth2 client credentials. `tosscli` supports the same
-credential names used by the OpenAPI spec:
+The invest API uses OAuth2 client credentials. Run login and enter the
+credentials interactively:
+
+```sh
+tosscli invest auth login
+```
+
+You can also provide the same credential names used by the OpenAPI spec as
+shell environment variables:
 
 ```sh
 export TOSS_INVEST_CLIENT_ID="..."
 export TOSS_INVEST_CLIENT_SECRET="..."
 ```
 
-Then issue and cache a token:
+Then issue and cache a token without being prompted:
 
 ```sh
 tosscli invest auth login
@@ -121,6 +128,8 @@ tosscli invest auth status
 ```
 
 Credentials and cached tokens are stored in the OS keyring when possible.
+`tosscli` reads process environment variables; it does not automatically load
+`.env` files.
 
 You can also pass credentials directly:
 

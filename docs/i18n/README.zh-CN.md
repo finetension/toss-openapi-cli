@@ -88,22 +88,29 @@ go run ./cmd/tosscli version
 
 ## 认证
 
-invest API 使用 OAuth2 client credentials。`tosscli` 支持 OpenAPI spec 中
-使用的 credential 名称：
+invest API 使用 OAuth2 client credentials。可以运行 login 并交互式输入
+credential：
+
+```sh
+tosscli invest auth login
+```
+
+也可以通过 shell 环境变量提供 OpenAPI spec 中使用的 credential 名称：
 
 ```sh
 export TOSS_INVEST_CLIENT_ID="..."
 export TOSS_INVEST_CLIENT_SECRET="..."
 ```
 
-然后签发并缓存 token：
+这样可以在没有 prompt 的情况下签发并缓存 token：
 
 ```sh
 tosscli invest auth login
 tosscli invest auth status
 ```
 
-在可能的情况下，credential 和缓存 token 会保存到操作系统 keyring。
+在可能的情况下，credential 和缓存 token 会保存到操作系统 keyring。`tosscli`
+读取 process 环境变量，不会自动加载 `.env` 文件。
 
 也可以直接传入 credential：
 

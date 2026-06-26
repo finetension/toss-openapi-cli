@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
+	"golang.org/x/term"
 
 	"github.com/finetension/toss-openapi-cli/internal/apperr"
 	"github.com/finetension/toss-openapi-cli/internal/auth"
@@ -1414,7 +1415,7 @@ func newInvestAuthLoginCommand(deps Dependencies) *cobra.Command {
 			return nil
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			credentials, err := readLoginCredentials(cmd, clientID, clientSecret)
+			credentials, err := readLoginCredentials(cmd, deps.EnvLookup, clientID, clientSecret)
 			if err != nil {
 				return err
 			}
@@ -1517,22 +1518,34 @@ func newInvestAuthStatusCommand(deps Dependencies) *cobra.Command {
 	return cmd
 }
 
-func readLoginCredentials(cmd *cobra.Command, clientID string, clientSecret string) (auth.Credentials, error) {
+func readLoginCredentials(cmd *cobra.Command, env auth.EnvLookup, clientID string, clientSecret string) (auth.Credentials, error) {
 	clientID = strings.TrimSpace(clientID)
 	clientSecret = strings.TrimSpace(clientSecret)
+	if env == nil {
+		env = auth.DefaultEnvLookup
+	}
+	if clientID == "" {
+		if value, ok := env("TOSS_INVEST_CLIENT_ID"); ok {
+			clientID = strings.TrimSpace(value)
+		}
+	}
+	if clientSecret == "" {
+		if value, ok := env("TOSS_INVEST_CLIENT_SECRET"); ok {
+			clientSecret = strings.TrimSpace(value)
+		}
+	}
+
 	reader := bufio.NewReader(cmd.InOrStdin())
 
 	if clientID == "" {
-		_, _ = fmt.Fprint(cmd.ErrOrStderr(), "Client ID: ")
-		line, err := reader.ReadString('\n')
+		line, err := readPromptLine(cmd.ErrOrStderr(), reader, "Client ID: ")
 		if err != nil && !errors.Is(err, io.EOF) {
 			return auth.Credentials{}, apperr.Wrap(apperr.CodeUsage, "Failed to read client ID", apperr.ExitUsage, err)
 		}
 		clientID = strings.TrimSpace(line)
 	}
 	if clientSecret == "" {
-		_, _ = fmt.Fprint(cmd.ErrOrStderr(), "Client Secret: ")
-		line, err := reader.ReadString('\n')
+		line, err := readSecretPrompt(cmd, reader)
 		if err != nil && !errors.Is(err, io.EOF) {
 			return auth.Credentials{}, apperr.Wrap(apperr.CodeUsage, "Failed to read client secret", apperr.ExitUsage, err)
 		}
@@ -1545,6 +1558,22 @@ func readLoginCredentials(cmd *cobra.Command, clientID string, clientSecret stri
 		return auth.Credentials{}, apperr.Usage("client secret is required")
 	}
 	return auth.Credentials{ClientID: clientID, ClientSecret: clientSecret}, nil
+}
+
+func readPromptLine(stderr io.Writer, reader *bufio.Reader, prompt string) (string, error) {
+	_, _ = fmt.Fprint(stderr, prompt)
+	return reader.ReadString('\n')
+}
+
+func readSecretPrompt(cmd *cobra.Command, reader *bufio.Reader) (string, error) {
+	stderr := cmd.ErrOrStderr()
+	_, _ = fmt.Fprint(stderr, "Client Secret: ")
+	if file, ok := cmd.InOrStdin().(*os.File); ok && term.IsTerminal(int(file.Fd())) {
+		secret, err := term.ReadPassword(int(file.Fd()))
+		_, _ = fmt.Fprintln(stderr)
+		return string(secret), err
+	}
+	return reader.ReadString('\n')
 }
 
 func normalizeCobraError(err error) error {

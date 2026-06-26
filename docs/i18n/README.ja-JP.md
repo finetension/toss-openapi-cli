@@ -93,22 +93,30 @@ go run ./cmd/tosscli version
 
 ## 認証
 
-invest API は OAuth2 client credentials を使用します。`tosscli` は
-OpenAPI spec で使われている credential 名をそのままサポートします。
+invest API は OAuth2 client credentials を使用します。login を実行して
+credential を対話的に入力できます。
+
+```sh
+tosscli invest auth login
+```
+
+OpenAPI spec で使われている credential 名を shell 環境変数として指定することも
+できます。
 
 ```sh
 export TOSS_INVEST_CLIENT_ID="..."
 export TOSS_INVEST_CLIENT_SECRET="..."
 ```
 
-次に token を発行して cache します。
+その場合は prompt なしで token を発行して cache します。
 
 ```sh
 tosscli invest auth login
 tosscli invest auth status
 ```
 
-可能な場合、credential と cached token は OS keyring に保存されます。
+可能な場合、credential と cached token は OS keyring に保存されます。`tosscli`
+は process 環境変数を読み、`.env` file を自動では読み込みません。
 
 credential を直接渡すこともできます。
 

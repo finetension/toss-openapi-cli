@@ -11,7 +11,28 @@ import (
 	"github.com/finetension/toss-openapi-cli/internal/apperr"
 	"github.com/finetension/toss-openapi-cli/internal/auth"
 	"github.com/finetension/toss-openapi-cli/internal/invest"
+	"github.com/finetension/toss-openapi-cli/internal/output"
 )
+
+func executeForTestWithInput(input string, deps Dependencies, args ...string) (stdout string, stderr string, exitCode int) {
+	var out bytes.Buffer
+	var errOut bytes.Buffer
+	cmd := NewRootCommand(IOStreams{In: strings.NewReader(input), Out: &out, ErrOut: &errOut}, deps)
+	cmd.SetArgs(args)
+
+	if err := cmd.Execute(); err != nil {
+		exitCode = output.WriteError(&out, normalizeCobraError(err))
+		return out.String(), errOut.String(), exitCode
+	}
+	return out.String(), errOut.String(), apperr.ExitSuccess
+}
+
+func mapEnvLookup(values map[string]string) auth.EnvLookup {
+	return func(key string) (string, bool) {
+		value, ok := values[key]
+		return value, ok
+	}
+}
 
 func TestVersionOutputsJSON(t *testing.T) {
 	stdout, stderr, exitCode := ExecuteForTest("version")
@@ -361,6 +382,68 @@ func TestInvestAuthLoginWithFlagsStoresCredentialsAndOutputsStatus(t *testing.T)
 	}
 	if credentials.ClientID != "client-id" || credentials.ClientSecret != "client-secret" {
 		t.Fatalf("stored credentials = %+v", credentials)
+	}
+}
+
+func TestInvestAuthLoginUsesEnvCredentials(t *testing.T) {
+	store := auth.NewMemorySecretStore()
+	issuer := &fakeTokenIssuer{
+		response: invest.OAuth2TokenResponse{
+			AccessToken: "token",
+			TokenType:   "Bearer",
+			ExpiresIn:   3600,
+		},
+	}
+
+	stdout, stderr, exitCode := ExecuteForTestWithDeps(Dependencies{
+		SecretStore: store,
+		EnvLookup: mapEnvLookup(map[string]string{
+			"TOSS_INVEST_CLIENT_ID":     "env-client-id",
+			"TOSS_INVEST_CLIENT_SECRET": "env-client-secret",
+		}),
+		TokenIssuer: issuer,
+	}, "invest", "auth", "login")
+
+	if exitCode != apperr.ExitSuccess {
+		t.Fatalf("exitCode = %d, want %d; stdout=%s stderr=%s", exitCode, apperr.ExitSuccess, stdout, stderr)
+	}
+	if stderr != "" {
+		t.Fatalf("stderr = %q, want empty", stderr)
+	}
+	if issuer.input.ClientID != "env-client-id" || issuer.input.ClientSecret != "env-client-secret" {
+		t.Fatalf("issuer input = %+v", issuer.input)
+	}
+	if strings.Contains(stdout, "env-client-secret") || strings.Contains(stdout, `"AccessToken"`) || strings.Contains(stdout, "issued-token") {
+		t.Fatalf("stdout leaked secret material: %s", stdout)
+	}
+}
+
+func TestInvestAuthLoginPromptsForMissingCredentials(t *testing.T) {
+	store := auth.NewMemorySecretStore()
+	issuer := &fakeTokenIssuer{
+		response: invest.OAuth2TokenResponse{
+			AccessToken: "token",
+			TokenType:   "Bearer",
+			ExpiresIn:   3600,
+		},
+	}
+
+	stdout, stderr, exitCode := executeForTestWithInput("prompt-client-id\nprompt-client-secret\n", Dependencies{
+		SecretStore: store,
+		TokenIssuer: issuer,
+	}, "invest", "auth", "login")
+
+	if exitCode != apperr.ExitSuccess {
+		t.Fatalf("exitCode = %d, want %d; stdout=%s stderr=%s", exitCode, apperr.ExitSuccess, stdout, stderr)
+	}
+	if stderr != "Client ID: Client Secret: " {
+		t.Fatalf("stderr = %q", stderr)
+	}
+	if issuer.input.ClientID != "prompt-client-id" || issuer.input.ClientSecret != "prompt-client-secret" {
+		t.Fatalf("issuer input = %+v", issuer.input)
+	}
+	if strings.Contains(stdout, "prompt-client-secret") || strings.Contains(stdout, `"AccessToken"`) || strings.Contains(stdout, "issued-token") {
+		t.Fatalf("stdout leaked secret material: %s", stdout)
 	}
 }
 
