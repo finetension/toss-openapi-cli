@@ -2,6 +2,27 @@
 
 [English](../../README.md) | 한국어 | [简体中文](README.zh-CN.md) | [日本語](README.ja-JP.md)
 
+## 설치
+
+최신 릴리즈를 설치합니다.
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/finetension/toss-openapi-cli/main/install.sh | sh
+```
+
+설치 후 binary를 확인합니다.
+
+```sh
+tosscli version
+tosscli doctor
+```
+
+특정 버전을 설치하려면 다음처럼 실행합니다.
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/finetension/toss-openapi-cli/main/install.sh | TOSSCLI_VERSION=v0.1.0 sh
+```
+
 `toss-openapi-cli`는 공개 Toss Open API만 사용하는 비공식 CLI 및 에이전트
 툴킷입니다. 첫 대상은 `invest` 네임스페이스로 노출되는 토스증권 Open API입니다.
 
@@ -52,27 +73,6 @@ credential, token cache, account header, request construction, output formatting
 
 이 프로젝트는 브라우저 세션 재사용이나 문서화되지 않은 내부 API가 필요한 토스증권
 웹앱 기능을 다루지 않습니다.
-
-## 설치
-
-최신 릴리즈를 설치합니다.
-
-```sh
-curl -fsSL https://raw.githubusercontent.com/finetension/toss-openapi-cli/main/install.sh | sh
-```
-
-설치 후 binary를 확인합니다.
-
-```sh
-tosscli version
-tosscli doctor
-```
-
-특정 버전을 설치하려면 다음처럼 실행합니다.
-
-```sh
-curl -fsSL https://raw.githubusercontent.com/finetension/toss-openapi-cli/main/install.sh | TOSSCLI_VERSION=v0.1.0 sh
-```
 
 ## 소스에서 빌드
 

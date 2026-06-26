@@ -2,6 +2,27 @@
 
 English | [한국어](docs/i18n/README.ko-KR.md) | [简体中文](docs/i18n/README.zh-CN.md) | [日本語](docs/i18n/README.ja-JP.md)
 
+## Install
+
+Install the latest release:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/finetension/toss-openapi-cli/main/install.sh | sh
+```
+
+Then verify the installed binary:
+
+```sh
+tosscli version
+tosscli doctor
+```
+
+To install a specific version:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/finetension/toss-openapi-cli/main/install.sh | TOSSCLI_VERSION=v0.1.0 sh
+```
+
 `toss-openapi-cli` is an unofficial, public-OpenAPI-only CLI and agent toolkit
 for Toss APIs, starting with the Toss Securities Open API exposed through the
 `invest` namespace.
@@ -53,27 +74,6 @@ Use this project when you want:
 
 This project does not cover Toss Securities web-app features that require
 browser session reuse or undocumented internal APIs.
-
-## Install
-
-Install the latest release:
-
-```sh
-curl -fsSL https://raw.githubusercontent.com/finetension/toss-openapi-cli/main/install.sh | sh
-```
-
-Then verify the installed binary:
-
-```sh
-tosscli version
-tosscli doctor
-```
-
-To install a specific version:
-
-```sh
-curl -fsSL https://raw.githubusercontent.com/finetension/toss-openapi-cli/main/install.sh | TOSSCLI_VERSION=v0.1.0 sh
-```
 
 ## Build From Source
 

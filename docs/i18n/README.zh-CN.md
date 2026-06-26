@@ -2,6 +2,27 @@
 
 [English](../../README.md) | [한국어](README.ko-KR.md) | 简体中文 | [日本語](README.ja-JP.md)
 
+## 安装
+
+安装最新 release：
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/finetension/toss-openapi-cli/main/install.sh | sh
+```
+
+安装后验证 binary：
+
+```sh
+tosscli version
+tosscli doctor
+```
+
+如需安装指定版本：
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/finetension/toss-openapi-cli/main/install.sh | TOSSCLI_VERSION=v0.1.0 sh
+```
+
 `toss-openapi-cli` 是一个只使用公开 Toss Open API 的非官方 CLI 和 Agent
 工具包。当前首先支持通过 `invest` 命名空间暴露的 Toss Securities Open API。
 
@@ -49,27 +70,6 @@ formatting 放在一个可预测的工具中处理。
 
 本项目不覆盖需要浏览器会话复用或未文档化内部 API 的 Toss Securities Web app
 功能。
-
-## 安装
-
-安装最新 release：
-
-```sh
-curl -fsSL https://raw.githubusercontent.com/finetension/toss-openapi-cli/main/install.sh | sh
-```
-
-安装后验证 binary：
-
-```sh
-tosscli version
-tosscli doctor
-```
-
-如需安装指定版本：
-
-```sh
-curl -fsSL https://raw.githubusercontent.com/finetension/toss-openapi-cli/main/install.sh | TOSSCLI_VERSION=v0.1.0 sh
-```
 
 ## 从源码构建
 
