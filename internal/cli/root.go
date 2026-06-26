@@ -99,13 +99,27 @@ func Execute() int {
 }
 
 func NewRootCommand(streams IOStreams, deps Dependencies) *cobra.Command {
+	var showVersion bool
 	cmd := &cobra.Command{
 		Use:           "tosscli",
 		Short:         "Unofficial CLI built on public Toss Open APIs.",
 		Long:          "Unofficial CLI built on public Toss Open APIs.\n\nSuccessful command output is JSON on stdout. Errors are structured JSON.",
 		SilenceUsage:  true,
 		SilenceErrors: true,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if len(args) > 0 {
+				return apperr.Usage(fmt.Sprintf("unknown command %q", args[0]))
+			}
+			if showVersion {
+				if err := output.WriteJSON(cmd.OutOrStdout(), version.Get()); err != nil {
+					return apperr.Unexpected(err)
+				}
+				return nil
+			}
+			return cmd.Help()
+		},
 	}
+	cmd.Flags().BoolVarP(&showVersion, "version", "v", false, "Print version information.")
 
 	if streams.Out != nil {
 		cmd.SetOut(streams.Out)

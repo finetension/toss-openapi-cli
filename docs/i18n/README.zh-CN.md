@@ -7,23 +7,15 @@
 安装最新 release：
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/finetension/toss-openapi-cli/main/install.sh | sh
+npm install -g toss-openapi-cli
 ```
 
 安装后验证 binary：
 
 ```sh
 tosscli version
+tosscli -v
 tosscli doctor
-```
-
-installer 默认安装到 `~/.local/bin`。如果该目录不在 `PATH` 中，请先按照输出的
-PATH 提示配置后再运行 `tosscli`。
-
-如需安装指定版本：
-
-```sh
-curl -fsSL https://raw.githubusercontent.com/finetension/toss-openapi-cli/main/install.sh | TOSSCLI_VERSION=v0.1.1 sh
 ```
 
 `toss-openapi-cli` 是一个只使用公开 Toss Open API 的非官方 CLI 和 Agent
@@ -88,6 +80,23 @@ go run ./cmd/tosscli version
 ```
 
 当前仓库使用 Go `1.26.4`。
+
+## 替代安装
+
+macOS 和 Linux 也可以使用基于 GitHub Releases 的 standalone installer：
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/finetension/toss-openapi-cli/main/install.sh | sh
+```
+
+如需安装指定版本：
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/finetension/toss-openapi-cli/main/install.sh | TOSSCLI_VERSION=v0.1.1 sh
+```
+
+standalone installer 默认安装到 `~/.local/bin`。如果该目录不在 `PATH` 中，请先
+按照输出的 PATH 提示配置后再运行 `tosscli`。
 
 ## 认证
 

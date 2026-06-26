@@ -57,6 +57,31 @@ func TestVersionOutputsJSON(t *testing.T) {
 	}
 }
 
+func TestRootVersionFlagOutputsJSON(t *testing.T) {
+	for _, args := range [][]string{{"--version"}, {"-v"}} {
+		stdout, stderr, exitCode := ExecuteForTest(args...)
+		if exitCode != apperr.ExitSuccess {
+			t.Fatalf("args %v exitCode = %d, want %d; stdout=%s stderr=%s", args, exitCode, apperr.ExitSuccess, stdout, stderr)
+		}
+		if stderr != "" {
+			t.Fatalf("args %v stderr = %q, want empty", args, stderr)
+		}
+
+		var got struct {
+			Version string `json:"version"`
+			Commit  string `json:"commit"`
+			Date    string `json:"date"`
+			BuiltBy string `json:"builtBy"`
+		}
+		if err := json.Unmarshal([]byte(stdout), &got); err != nil {
+			t.Fatalf("args %v stdout is not valid JSON: %v\n%s", args, err, stdout)
+		}
+		if got.Version == "" || got.Commit == "" || got.Date == "" || got.BuiltBy == "" {
+			t.Fatalf("args %v version output has empty fields: %+v", args, got)
+		}
+	}
+}
+
 func TestUnknownCommandOutputsStructuredUsageError(t *testing.T) {
 	stdout, stderr, exitCode := ExecuteForTest("nope")
 	if exitCode != apperr.ExitUsage {

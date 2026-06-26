@@ -7,23 +7,15 @@
 최신 릴리즈를 설치합니다.
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/finetension/toss-openapi-cli/main/install.sh | sh
+npm install -g toss-openapi-cli
 ```
 
 설치 후 binary를 확인합니다.
 
 ```sh
 tosscli version
+tosscli -v
 tosscli doctor
-```
-
-installer는 기본적으로 `~/.local/bin`에 설치합니다. 이 경로가 `PATH`에 없으면
-출력된 PATH 안내를 적용한 뒤 `tosscli`를 실행하세요.
-
-특정 버전을 설치하려면 다음처럼 실행합니다.
-
-```sh
-curl -fsSL https://raw.githubusercontent.com/finetension/toss-openapi-cli/main/install.sh | TOSSCLI_VERSION=v0.1.1 sh
 ```
 
 `toss-openapi-cli`는 공개 Toss Open API만 사용하는 비공식 CLI 및 에이전트
@@ -91,6 +83,23 @@ go run ./cmd/tosscli version
 ```
 
 현재 이 저장소는 Go `1.26.4`를 사용합니다.
+
+## 대체 설치
+
+macOS와 Linux에서는 GitHub Releases 기반 standalone installer도 사용할 수 있습니다.
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/finetension/toss-openapi-cli/main/install.sh | sh
+```
+
+특정 버전을 설치하려면 다음처럼 실행합니다.
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/finetension/toss-openapi-cli/main/install.sh | TOSSCLI_VERSION=v0.1.1 sh
+```
+
+standalone installer는 기본적으로 `~/.local/bin`에 설치합니다. 이 경로가 `PATH`에
+없으면 출력된 PATH 안내를 적용한 뒤 `tosscli`를 실행하세요.
 
 ## 인증
 

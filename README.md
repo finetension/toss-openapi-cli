@@ -7,23 +7,15 @@ English | [한국어](docs/i18n/README.ko-KR.md) | [简体中文](docs/i18n/READ
 Install the latest release:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/finetension/toss-openapi-cli/main/install.sh | sh
+npm install -g toss-openapi-cli
 ```
 
 Then verify the installed binary:
 
 ```sh
 tosscli version
+tosscli -v
 tosscli doctor
-```
-
-The installer defaults to `~/.local/bin`. If that directory is not on `PATH`,
-follow the printed PATH guidance before running `tosscli`.
-
-To install a specific version:
-
-```sh
-curl -fsSL https://raw.githubusercontent.com/finetension/toss-openapi-cli/main/install.sh | TOSSCLI_VERSION=v0.1.1 sh
 ```
 
 `toss-openapi-cli` is an unofficial, public-OpenAPI-only CLI and agent toolkit
@@ -92,6 +84,24 @@ go run ./cmd/tosscli version
 ```
 
 This repository currently uses Go `1.26.4`.
+
+## Alternative Install
+
+macOS and Linux can also install from GitHub Releases with the standalone
+installer:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/finetension/toss-openapi-cli/main/install.sh | sh
+```
+
+To install a specific version:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/finetension/toss-openapi-cli/main/install.sh | TOSSCLI_VERSION=v0.1.1 sh
+```
+
+The standalone installer defaults to `~/.local/bin`. If that directory is not
+on `PATH`, follow the printed PATH guidance before running `tosscli`.
 
 ## Agent Skill
 

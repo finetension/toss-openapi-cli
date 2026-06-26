@@ -1,0 +1,61 @@
+name: NPM Package Check
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  npm-package:
+    name: NPM Package (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - macos-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 26
+
+      - name: Build npm packages
+        run: NPM_DEP_MODE=file scripts/build-npm-packages.sh 0.0.0-ci
+
+      - name: Resolve platform package
+        id: platform
+        shell: bash
+        run: |
+          case "$(uname -s)-$(uname -m)" in
+            Darwin-arm64) package="tosscli-darwin-arm64" ;;
+            Darwin-x86_64) package="tosscli-darwin-x64" ;;
+            Linux-aarch64 | Linux-arm64) package="tosscli-linux-arm64" ;;
+            Linux-x86_64) package="tosscli-linux-x64" ;;
+            *) echo "unsupported platform: $(uname -s)-$(uname -m)" >&2; exit 1 ;;
+          esac
+          printf 'package=%s\n' "$package" >> "$GITHUB_OUTPUT"
+
+      - name: Install npm package globally
+        run: |
+          npm install -g "./dist/npm/${{ steps.platform.outputs.package }}" ./dist/npm/toss-openapi-cli
+          command -v tosscli
+          tosscli version
+          tosscli -v
+          tosscli --version
