@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/finetension/toss-openapi-cli/internal/apperr"
@@ -59,6 +60,205 @@ func TestUnknownCommandOutputsStructuredUsageError(t *testing.T) {
 	}
 	if got.Error.Message == "" {
 		t.Fatal("error.message is empty")
+	}
+}
+
+func TestDoctorOutputsReadinessChecks(t *testing.T) {
+	accountAPI := &fakeAccountAPI{
+		response: invest.AccountsResponse{
+			Result: []invest.Account{
+				{AccountSeq: 1},
+				{AccountSeq: 2},
+			},
+		},
+	}
+	issuer := &fakeTokenIssuer{
+		response: invest.OAuth2TokenResponse{
+			AccessToken: "issued-token",
+			TokenType:   "Bearer",
+			ExpiresIn:   3600,
+		},
+	}
+
+	stdout, stderr, exitCode := ExecuteForTestWithDeps(Dependencies{
+		SecretStore: auth.NewMemorySecretStore(),
+		EnvLookup: func(key string) (string, bool) {
+			values := map[string]string{
+				"TOSS_INVEST_CLIENT_ID":     "client-id",
+				"TOSS_INVEST_CLIENT_SECRET": "client-secret",
+			}
+			value, ok := values[key]
+			return value, ok
+		},
+		TokenIssuer: issuer,
+		AccountAPI:  accountAPI,
+	}, "doctor")
+
+	if exitCode != apperr.ExitSuccess {
+		t.Fatalf("exitCode = %d, want %d; stdout=%s stderr=%s", exitCode, apperr.ExitSuccess, stdout, stderr)
+	}
+	if stderr != "" {
+		t.Fatalf("stderr = %q, want empty", stderr)
+	}
+	if accountAPI.accessToken != "issued-token" {
+		t.Fatalf("account accessToken = %q", accountAPI.accessToken)
+	}
+	if bytes.Contains([]byte(stdout), []byte("client-secret")) || bytes.Contains([]byte(stdout), []byte("issued-token")) {
+		t.Fatalf("doctor output leaked secret material: %s", stdout)
+	}
+
+	var got struct {
+		Status string            `json:"status"`
+		Checks []testDoctorCheck `json:"checks"`
+	}
+	if err := json.Unmarshal([]byte(stdout), &got); err != nil {
+		t.Fatalf("stdout is not valid JSON: %v\n%s", err, stdout)
+	}
+	if got.Status != "ok" {
+		t.Fatalf("status = %q, want ok; stdout=%s", got.Status, stdout)
+	}
+	if len(got.Checks) != 4 {
+		t.Fatalf("len(checks) = %d, want 4; checks=%+v", len(got.Checks), got.Checks)
+	}
+	checks := doctorChecksByName(got.Checks)
+	if checks["version"].Status != "ok" {
+		t.Fatalf("version check = %+v", checks["version"])
+	}
+	if checks["credentials"].Status != "ok" || checks["credentials"].Source != "env" {
+		t.Fatalf("credentials check = %+v", checks["credentials"])
+	}
+	if checks["token"].Status != "ok" || checks["token"].Source != "keyring" {
+		t.Fatalf("token check = %+v", checks["token"])
+	}
+	if checks["account-list"].Status != "ok" || checks["account-list"].AccountCount == nil || *checks["account-list"].AccountCount != 2 {
+		t.Fatalf("account-list check = %+v", checks["account-list"])
+	}
+}
+
+func TestDoctorSupportsDirectAccessTokenWithoutCredentials(t *testing.T) {
+	accountAPI := &fakeAccountAPI{
+		response: invest.AccountsResponse{Result: []invest.Account{{AccountSeq: 1}}},
+	}
+
+	stdout, stderr, exitCode := ExecuteForTestWithDeps(Dependencies{
+		SecretStore: auth.NewMemorySecretStore(),
+		EnvLookup:   testEnvAccessToken,
+		AccountAPI:  accountAPI,
+	}, "doctor")
+
+	if exitCode != apperr.ExitSuccess {
+		t.Fatalf("exitCode = %d, want %d; stdout=%s stderr=%s", exitCode, apperr.ExitSuccess, stdout, stderr)
+	}
+	if stderr != "" {
+		t.Fatalf("stderr = %q, want empty", stderr)
+	}
+	if accountAPI.accessToken != "env-token" {
+		t.Fatalf("account accessToken = %q", accountAPI.accessToken)
+	}
+
+	var got struct {
+		Status string            `json:"status"`
+		Checks []testDoctorCheck `json:"checks"`
+	}
+	if err := json.Unmarshal([]byte(stdout), &got); err != nil {
+		t.Fatalf("stdout is not valid JSON: %v\n%s", err, stdout)
+	}
+	if got.Status != "ok" {
+		t.Fatalf("status = %q, want ok; stdout=%s", got.Status, stdout)
+	}
+	checks := doctorChecksByName(got.Checks)
+	if checks["credentials"].Status != "skipped" || checks["credentials"].Source != "missing" {
+		t.Fatalf("credentials check = %+v", checks["credentials"])
+	}
+	if checks["token"].Status != "ok" || checks["token"].Source != "env" {
+		t.Fatalf("token check = %+v", checks["token"])
+	}
+}
+
+func TestDoctorReportsMissingCredentialsAndSkipsAccountList(t *testing.T) {
+	stdout, stderr, exitCode := ExecuteForTestWithDeps(Dependencies{
+		SecretStore: auth.NewMemorySecretStore(),
+		TokenIssuer: &fakeTokenIssuer{},
+		AccountAPI:  &fakeAccountAPI{},
+	}, "doctor")
+
+	if exitCode != apperr.ExitSuccess {
+		t.Fatalf("exitCode = %d, want %d; stdout=%s stderr=%s", exitCode, apperr.ExitSuccess, stdout, stderr)
+	}
+	if stderr != "" {
+		t.Fatalf("stderr = %q, want empty", stderr)
+	}
+
+	var got struct {
+		Status string            `json:"status"`
+		Checks []testDoctorCheck `json:"checks"`
+	}
+	if err := json.Unmarshal([]byte(stdout), &got); err != nil {
+		t.Fatalf("stdout is not valid JSON: %v\n%s", err, stdout)
+	}
+	if got.Status != "fail" {
+		t.Fatalf("status = %q, want fail; stdout=%s", got.Status, stdout)
+	}
+	checks := doctorChecksByName(got.Checks)
+	if checks["credentials"].Status != "fail" || checks["credentials"].Message == "" {
+		t.Fatalf("credentials check = %+v", checks["credentials"])
+	}
+	if checks["token"].Status != "fail" || checks["token"].Message == "" {
+		t.Fatalf("token check = %+v", checks["token"])
+	}
+	if checks["account-list"].Status != "skipped" || checks["account-list"].Message == "" {
+		t.Fatalf("account-list check = %+v", checks["account-list"])
+	}
+}
+
+func TestOrderCreateHelpIncludesOASBackedRules(t *testing.T) {
+	stdout, stderr, exitCode := ExecuteForTest("invest", "order", "create", "--help")
+	if exitCode != apperr.ExitSuccess {
+		t.Fatalf("exitCode = %d, want %d; stdout=%s stderr=%s", exitCode, apperr.ExitSuccess, stdout, stderr)
+	}
+	if stderr != "" {
+		t.Fatalf("stderr = %q, want empty", stderr)
+	}
+	for _, want := range []string{
+		"OpenAPI operation: createOrder.",
+		"Rate limit group: ORDER.",
+		"Without --dry-run, this command sends a live order request.",
+		"Provide exactly one of --quantity or --order-amount.",
+		"LIMIT orders require --price.",
+		"--order-amount is for US MARKET buy orders.",
+		"--account-seq int",
+		"Source: tosscli invest account list.",
+	} {
+		if !strings.Contains(stdout, want) {
+			t.Fatalf("help missing %q\n%s", want, stdout)
+		}
+	}
+	if strings.Contains(stdout, "--account-seq tosscli invest account list") {
+		t.Fatalf("help used pflag backtick placeholder unexpectedly:\n%s", stdout)
+	}
+	if strings.Contains(stdout, "--yes") {
+		t.Fatalf("help exposed unsupported --yes flag:\n%s", stdout)
+	}
+}
+
+func TestCandlesHelpIncludesOASBackedFlagMetadata(t *testing.T) {
+	stdout, stderr, exitCode := ExecuteForTest("invest", "market-data", "candles", "--help")
+	if exitCode != apperr.ExitSuccess {
+		t.Fatalf("exitCode = %d, want %d; stdout=%s stderr=%s", exitCode, apperr.ExitSuccess, stdout, stderr)
+	}
+	if stderr != "" {
+		t.Fatalf("stderr = %q, want empty", stderr)
+	}
+	for _, want := range []string{
+		"OpenAPI operation: getCandles.",
+		"Rate limit group: MARKET_DATA_CHART.",
+		"Candle interval. Required. Allowed: 1m, 1d.",
+		"Candle count. Optional. Range: 1-200. Default: 100.",
+		"Format: ISO 8601 date-time.",
+	} {
+		if !strings.Contains(stdout, want) {
+			t.Fatalf("help missing %q\n%s", want, stdout)
+		}
 	}
 }
 
@@ -1129,7 +1329,7 @@ func TestInvestOrderCancelCancelsOrder(t *testing.T) {
 			return "", false
 		},
 		OrderAPI: orderAPI,
-	}, "invest", "order", "cancel", "order-1", "--account-seq", "1", "--yes")
+	}, "invest", "order", "cancel", "order-1", "--account-seq", "1")
 
 	if exitCode != apperr.ExitSuccess {
 		t.Fatalf("exitCode = %d, want %d; stdout=%s stderr=%s", exitCode, apperr.ExitSuccess, stdout, stderr)
@@ -1495,6 +1695,22 @@ func (f *fakeOrderAPI) CancelOrder(ctx context.Context, accessToken string, acco
 	f.accountSeq = accountSeq
 	f.orderID = orderID
 	return f.cancelResponse, f.err
+}
+
+type testDoctorCheck struct {
+	Name         string `json:"name"`
+	Status       string `json:"status"`
+	Message      string `json:"message"`
+	Source       string `json:"source"`
+	AccountCount *int   `json:"accountCount"`
+}
+
+func doctorChecksByName(checks []testDoctorCheck) map[string]testDoctorCheck {
+	byName := make(map[string]testDoctorCheck, len(checks))
+	for _, check := range checks {
+		byName[check.Name] = check
+	}
+	return byName
 }
 
 func compactJSON(t *testing.T, raw json.RawMessage) string {

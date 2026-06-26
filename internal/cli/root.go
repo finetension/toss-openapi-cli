@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"runtime"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -100,6 +101,7 @@ func NewRootCommand(streams IOStreams, deps Dependencies) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:           "tosscli",
 		Short:         "Unofficial CLI built on public Toss Open APIs.",
+		Long:          "Unofficial CLI built on public Toss Open APIs.\n\nSuccessful command output is JSON on stdout. Errors are structured JSON.",
 		SilenceUsage:  true,
 		SilenceErrors: true,
 	}
@@ -115,6 +117,7 @@ func NewRootCommand(streams IOStreams, deps Dependencies) *cobra.Command {
 	}
 
 	cmd.AddCommand(newVersionCommand())
+	cmd.AddCommand(newDoctorCommand(deps))
 	cmd.AddCommand(newInvestCommand(deps))
 	return cmd
 }
@@ -155,6 +158,173 @@ func newVersionCommand() *cobra.Command {
 	}
 }
 
+type doctorReport struct {
+	Status string        `json:"status"`
+	Checks []doctorCheck `json:"checks"`
+}
+
+type doctorCheck struct {
+	Name         string `json:"name"`
+	Status       string `json:"status"`
+	Message      string `json:"message,omitempty"`
+	Source       string `json:"source,omitempty"`
+	Version      string `json:"version,omitempty"`
+	Commit       string `json:"commit,omitempty"`
+	Date         string `json:"date,omitempty"`
+	BuiltBy      string `json:"builtBy,omitempty"`
+	OS           string `json:"os,omitempty"`
+	Arch         string `json:"arch,omitempty"`
+	Valid        *bool  `json:"valid,omitempty"`
+	ExpiresAt    string `json:"expiresAt,omitempty"`
+	AccountCount *int   `json:"accountCount,omitempty"`
+}
+
+func newDoctorCommand(deps Dependencies) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "doctor",
+		Short: "Check local Toss Invest CLI readiness.",
+		Args: func(cmd *cobra.Command, args []string) error {
+			if len(args) > 0 {
+				return apperr.Usage("doctor does not accept arguments")
+			}
+			return nil
+		},
+		RunE: func(cmd *cobra.Command, args []string) error {
+			report := runDoctor(context.Background(), deps)
+			if err := output.WriteJSON(cmd.OutOrStdout(), report); err != nil {
+				return apperr.Unexpected(err)
+			}
+			return nil
+		},
+	}
+	applyHelp(cmd, "cli:doctor")
+	return cmd
+}
+
+func runDoctor(ctx context.Context, deps Dependencies) doctorReport {
+	service := auth.NewService(deps.SecretStore, deps.EnvLookup)
+	status := service.Status()
+
+	checks := []doctorCheck{
+		doctorVersionCheck(),
+		doctorCredentialsCheck(status.Credentials, status.Token),
+	}
+
+	issuer := deps.TokenIssuer
+	if issuer == nil {
+		issuer = invest.NewClient("", nil)
+	}
+	accessToken, tokenStatus, tokenErr := doctorAccessToken(ctx, service, issuer)
+	checks = append(checks, doctorTokenCheck(tokenStatus, tokenErr))
+
+	accountCheck := doctorCheck{
+		Name:   "account-list",
+		Status: "skipped",
+	}
+	if tokenErr == nil {
+		accountAPI := deps.AccountAPI
+		if accountAPI == nil {
+			accountAPI = invest.NewClient("", nil)
+		}
+		accounts, err := accountAPI.GetAccounts(ctx, accessToken)
+		if err != nil {
+			accountCheck.Status = "fail"
+			accountCheck.Message = doctorErrorMessage(err)
+		} else {
+			accountCount := len(accounts.Result)
+			accountCheck.Status = "ok"
+			accountCheck.AccountCount = &accountCount
+		}
+	} else {
+		accountCheck.Message = "token check failed"
+	}
+	checks = append(checks, accountCheck)
+
+	reportStatus := "ok"
+	for _, check := range checks {
+		if check.Status == "fail" {
+			reportStatus = "fail"
+			break
+		}
+	}
+	return doctorReport{Status: reportStatus, Checks: checks}
+}
+
+func doctorVersionCheck() doctorCheck {
+	info := version.Get()
+	return doctorCheck{
+		Name:    "version",
+		Status:  "ok",
+		Version: info.Version,
+		Commit:  info.Commit,
+		Date:    info.Date,
+		BuiltBy: info.BuiltBy,
+		OS:      runtime.GOOS,
+		Arch:    runtime.GOARCH,
+	}
+}
+
+func doctorCredentialsCheck(status auth.CredentialStatus, tokenStatus auth.TokenStatus) doctorCheck {
+	check := doctorCheck{
+		Name:   "credentials",
+		Status: "fail",
+		Source: status.Source,
+	}
+	if status.Configured {
+		check.Status = "ok"
+		return check
+	}
+	if tokenStatus.Configured && tokenStatus.Valid && tokenStatus.Source == "env" {
+		check.Status = "skipped"
+		check.Message = "Access token is provided directly"
+		return check
+	}
+	check.Message = "Toss Invest credentials are not configured"
+	return check
+}
+
+func doctorAccessToken(ctx context.Context, service *auth.Service, issuer auth.TokenIssuer) (string, auth.TokenStatus, error) {
+	accessToken, err := service.AccessToken(ctx, issuer)
+	if err != nil {
+		return "", auth.TokenStatus{Source: "missing"}, err
+	}
+	tokenStatus, statusErr := service.Token(ctx, issuer)
+	if statusErr != nil {
+		return accessToken, auth.TokenStatus{Source: "missing"}, statusErr
+	}
+	return accessToken, tokenStatus, nil
+}
+
+func doctorTokenCheck(status auth.TokenStatus, err error) doctorCheck {
+	check := doctorCheck{
+		Name:      "token",
+		Status:    "fail",
+		Source:    status.Source,
+		Valid:     &status.Valid,
+		ExpiresAt: status.ExpiresAt,
+	}
+	if err != nil {
+		check.Message = doctorErrorMessage(err)
+		return check
+	}
+	if status.Configured && status.Valid {
+		check.Status = "ok"
+	}
+	return check
+}
+
+func doctorErrorMessage(err error) string {
+	if err == nil {
+		return ""
+	}
+	normalized := normalizeCobraError(err)
+	app := apperr.FromError(normalized)
+	if app != nil {
+		return app.Message
+	}
+	return err.Error()
+}
+
 func newInvestCommand(deps Dependencies) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "invest",
@@ -182,7 +352,7 @@ func newInvestAccountCommand(deps Dependencies) *cobra.Command {
 }
 
 func newInvestAccountListCommand(deps Dependencies) *cobra.Command {
-	return &cobra.Command{
+	cmd := &cobra.Command{
 		Use:   "list",
 		Short: "List Toss Invest accounts.",
 		Args: func(cmd *cobra.Command, args []string) error {
@@ -211,6 +381,8 @@ func newInvestAccountListCommand(deps Dependencies) *cobra.Command {
 			return nil
 		},
 	}
+	applyHelp(cmd, "getAccounts")
+	return cmd
 }
 
 func newInvestAssetCommand(deps Dependencies) *cobra.Command {
@@ -259,6 +431,7 @@ func newInvestAssetHoldingsCommand(deps Dependencies) *cobra.Command {
 	}
 	cmd.Flags().Int64Var(&accountSeq, "account-seq", 0, "Toss Invest account sequence.")
 	cmd.Flags().StringVar(&symbol, "symbol", "", "Toss Invest symbol.")
+	applyHelp(cmd, "getHoldings")
 	return cmd
 }
 
@@ -310,6 +483,7 @@ func newInvestMarketDataOrderbookCommand(deps Dependencies) *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&symbol, "symbol", "", "Toss Invest symbol.")
+	applyHelp(cmd, "getOrderbook")
 	return cmd
 }
 
@@ -348,6 +522,7 @@ func newInvestMarketDataPricesCommand(deps Dependencies) *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&symbols, "symbols", "", "Comma-separated Toss Invest symbols.")
+	applyHelp(cmd, "getPrices")
 	return cmd
 }
 
@@ -388,6 +563,7 @@ func newInvestMarketDataTradesCommand(deps Dependencies) *cobra.Command {
 	}
 	cmd.Flags().StringVar(&symbol, "symbol", "", "Toss Invest symbol.")
 	cmd.Flags().IntVar(&count, "count", 0, "Trade count.")
+	applyHelp(cmd, "getTrades")
 	return cmd
 }
 
@@ -426,6 +602,7 @@ func newInvestMarketDataPriceLimitsCommand(deps Dependencies) *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&symbol, "symbol", "", "Toss Invest symbol.")
+	applyHelp(cmd, "getPriceLimit")
 	return cmd
 }
 
@@ -484,6 +661,7 @@ func newInvestMarketDataCandlesCommand(deps Dependencies) *cobra.Command {
 	cmd.Flags().IntVar(&count, "count", 0, "Candle count.")
 	cmd.Flags().StringVar(&before, "before", "", "Exclusive upper bound timestamp.")
 	cmd.Flags().BoolVar(&adjusted, "adjusted", false, "Request adjusted prices.")
+	applyHelp(cmd, "getCandles")
 	return cmd
 }
 
@@ -543,6 +721,7 @@ func newInvestMarketInfoExchangeRateCommand(deps Dependencies) *cobra.Command {
 	cmd.Flags().StringVar(&baseCurrency, "base-currency", "", "Base currency.")
 	cmd.Flags().StringVar(&quoteCurrency, "quote-currency", "", "Quote currency.")
 	cmd.Flags().StringVar(&dateTime, "date-time", "", "Exchange-rate timestamp.")
+	applyHelp(cmd, "getExchangeRate")
 	return cmd
 }
 
@@ -588,6 +767,11 @@ func newInvestMarketInfoCalendarMarketCommand(deps Dependencies, use string, mar
 		},
 	}
 	cmd.Flags().StringVar(&date, "date", "", "Calendar date in YYYY-MM-DD.")
+	if market == "KR" {
+		applyHelp(cmd, "getKrMarketCalendar")
+	} else {
+		applyHelp(cmd, "getUsMarketCalendar")
+	}
 	return cmd
 }
 
@@ -636,11 +820,12 @@ func newInvestStockInfoStocksCommand(deps Dependencies) *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&symbols, "symbols", "", "Comma-separated Toss Invest symbols.")
+	applyHelp(cmd, "getStocks")
 	return cmd
 }
 
 func newInvestStockInfoWarningsCommand(deps Dependencies) *cobra.Command {
-	return &cobra.Command{
+	cmd := &cobra.Command{
 		Use:   "warnings <symbol>",
 		Short: "Get stock warnings.",
 		Args: func(cmd *cobra.Command, args []string) error {
@@ -671,6 +856,8 @@ func newInvestStockInfoWarningsCommand(deps Dependencies) *cobra.Command {
 			return nil
 		},
 	}
+	applyHelp(cmd, "getStockWarnings")
+	return cmd
 }
 
 func newInvestOrderInfoCommand(deps Dependencies) *cobra.Command {
@@ -719,6 +906,7 @@ func newInvestOrderInfoCommissionsCommand(deps Dependencies) *cobra.Command {
 		},
 	}
 	cmd.Flags().Int64Var(&accountSeq, "account-seq", 0, "Toss Invest account sequence.")
+	applyHelp(cmd, "getCommissions")
 	return cmd
 }
 
@@ -762,6 +950,7 @@ func newInvestOrderInfoBuyingPowerCommand(deps Dependencies) *cobra.Command {
 	}
 	cmd.Flags().Int64Var(&accountSeq, "account-seq", 0, "Toss Invest account sequence.")
 	cmd.Flags().StringVar(&currency, "currency", "", "Currency code.")
+	applyHelp(cmd, "getBuyingPower")
 	return cmd
 }
 
@@ -805,6 +994,7 @@ func newInvestOrderInfoSellableQuantityCommand(deps Dependencies) *cobra.Command
 	}
 	cmd.Flags().Int64Var(&accountSeq, "account-seq", 0, "Toss Invest account sequence.")
 	cmd.Flags().StringVar(&symbol, "symbol", "", "Toss Invest symbol.")
+	applyHelp(cmd, "getSellableQuantity")
 	return cmd
 }
 
@@ -887,6 +1077,7 @@ func newInvestOrderHistoryListCommand(deps Dependencies) *cobra.Command {
 	cmd.Flags().StringVar(&to, "to", "", "End date, inclusive, in YYYY-MM-DD.")
 	cmd.Flags().StringVar(&cursor, "cursor", "", "Pagination cursor.")
 	cmd.Flags().IntVar(&limit, "limit", 0, "Page size for CLOSED orders.")
+	applyHelp(cmd, "getOrders")
 	return cmd
 }
 
@@ -928,6 +1119,7 @@ func newInvestOrderHistoryGetCommand(deps Dependencies) *cobra.Command {
 		},
 	}
 	cmd.Flags().Int64Var(&accountSeq, "account-seq", 0, "Toss Invest account sequence.")
+	applyHelp(cmd, "getOrder")
 	return cmd
 }
 
@@ -954,7 +1146,6 @@ func newInvestOrderCreateCommand(deps Dependencies) *cobra.Command {
 	var orderAmount string
 	var confirmHighValueOrder bool
 	var dryRun bool
-	var yes bool
 
 	cmd := &cobra.Command{
 		Use:   "create",
@@ -983,7 +1174,6 @@ func newInvestOrderCreateCommand(deps Dependencies) *cobra.Command {
 			if strings.EqualFold(strings.TrimSpace(orderType), "LIMIT") && strings.TrimSpace(price) == "" {
 				return apperr.Usage("--price is required for LIMIT orders")
 			}
-			_ = yes
 			return nil
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -1024,7 +1214,7 @@ func newInvestOrderCreateCommand(deps Dependencies) *cobra.Command {
 	cmd.Flags().StringVar(&orderAmount, "order-amount", "", "Order amount.")
 	cmd.Flags().BoolVar(&confirmHighValueOrder, "confirm-high-value-order", false, "Confirm high-value order.")
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Build the request without sending it.")
-	cmd.Flags().BoolVar(&yes, "yes", false, "Skip confirmation prompts when prompts are required.")
+	applyHelp(cmd, "createOrder")
 	return cmd
 }
 
@@ -1035,7 +1225,6 @@ func newInvestOrderModifyCommand(deps Dependencies) *cobra.Command {
 	var price string
 	var confirmHighValueOrder bool
 	var dryRun bool
-	var yes bool
 
 	cmd := &cobra.Command{
 		Use:   "modify <orderId>",
@@ -1056,7 +1245,6 @@ func newInvestOrderModifyCommand(deps Dependencies) *cobra.Command {
 			if strings.EqualFold(strings.TrimSpace(orderType), "LIMIT") && strings.TrimSpace(price) == "" {
 				return apperr.Usage("--price is required for LIMIT orders")
 			}
-			_ = yes
 			return nil
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -1095,14 +1283,13 @@ func newInvestOrderModifyCommand(deps Dependencies) *cobra.Command {
 	cmd.Flags().StringVar(&price, "price", "", "Order price.")
 	cmd.Flags().BoolVar(&confirmHighValueOrder, "confirm-high-value-order", false, "Confirm high-value order.")
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Build the request without sending it.")
-	cmd.Flags().BoolVar(&yes, "yes", false, "Skip confirmation prompts when prompts are required.")
+	applyHelp(cmd, "modifyOrder")
 	return cmd
 }
 
 func newInvestOrderCancelCommand(deps Dependencies) *cobra.Command {
 	var accountSeq int64
 	var dryRun bool
-	var yes bool
 
 	cmd := &cobra.Command{
 		Use:   "cancel <orderId>",
@@ -1117,7 +1304,6 @@ func newInvestOrderCancelCommand(deps Dependencies) *cobra.Command {
 			if !cmd.Flags().Changed("account-seq") {
 				return apperr.Usage("--account-seq is required")
 			}
-			_ = yes
 			return nil
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -1146,7 +1332,7 @@ func newInvestOrderCancelCommand(deps Dependencies) *cobra.Command {
 	}
 	cmd.Flags().Int64Var(&accountSeq, "account-seq", 0, "Toss Invest account sequence.")
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Build the request without sending it.")
-	cmd.Flags().BoolVar(&yes, "yes", false, "Skip confirmation prompts when prompts are required.")
+	applyHelp(cmd, "cancelOrder")
 	return cmd
 }
 
@@ -1249,11 +1435,12 @@ func newInvestAuthLoginCommand(deps Dependencies) *cobra.Command {
 	}
 	cmd.Flags().StringVar(&clientID, "client-id", "", "Toss Invest client ID.")
 	cmd.Flags().StringVar(&clientSecret, "client-secret", "", "Toss Invest client secret.")
+	applyHelp(cmd, "cli:auth-login")
 	return cmd
 }
 
 func newInvestAuthLogoutCommand(deps Dependencies) *cobra.Command {
-	return &cobra.Command{
+	cmd := &cobra.Command{
 		Use:   "logout",
 		Short: "Clear stored Toss Invest credentials and token.",
 		Args: func(cmd *cobra.Command, args []string) error {
@@ -1274,10 +1461,12 @@ func newInvestAuthLogoutCommand(deps Dependencies) *cobra.Command {
 			return nil
 		},
 	}
+	applyHelp(cmd, "cli:auth-logout")
+	return cmd
 }
 
 func newInvestAuthTokenCommand(deps Dependencies) *cobra.Command {
-	return &cobra.Command{
+	cmd := &cobra.Command{
 		Use:   "token",
 		Short: "Issue or refresh a Toss Invest access token.",
 		Args: func(cmd *cobra.Command, args []string) error {
@@ -1302,10 +1491,12 @@ func newInvestAuthTokenCommand(deps Dependencies) *cobra.Command {
 			return nil
 		},
 	}
+	applyHelp(cmd, "cli:auth-token")
+	return cmd
 }
 
 func newInvestAuthStatusCommand(deps Dependencies) *cobra.Command {
-	return &cobra.Command{
+	cmd := &cobra.Command{
 		Use:   "status",
 		Short: "Show Toss Invest authentication status.",
 		Args: func(cmd *cobra.Command, args []string) error {
@@ -1322,6 +1513,8 @@ func newInvestAuthStatusCommand(deps Dependencies) *cobra.Command {
 			return nil
 		},
 	}
+	applyHelp(cmd, "cli:auth-status")
+	return cmd
 }
 
 func readLoginCredentials(cmd *cobra.Command, clientID string, clientSecret string) (auth.Credentials, error) {
