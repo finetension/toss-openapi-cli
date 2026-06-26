@@ -50,15 +50,28 @@ formatting 放在一个可预测的工具中处理。
 本项目不覆盖需要浏览器会话复用或未文档化内部 API 的 Toss Securities Web app
 功能。
 
-## 从源码安装
+## 安装
 
-公开 release artifacts 尚未发布。首次 release 之后，可以使用以下命令安装：
+安装最新 release：
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/finetension/toss-openapi-cli/main/install.sh | sh
 ```
 
-在此之前，请在本地构建：
+安装后验证 binary：
+
+```sh
+tosscli version
+tosscli doctor
+```
+
+如需安装指定版本：
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/finetension/toss-openapi-cli/main/install.sh | TOSSCLI_VERSION=v0.1.0 sh
+```
+
+## 从源码构建
 
 ```sh
 go build -o bin/tosscli ./cmd/tosscli
@@ -306,9 +319,9 @@ goreleaser check
 goreleaser release --snapshot --clean
 ```
 
-## 发布计划
+## 发布
 
-首个公开发布路径计划基于 GitHub Releases 和 GoReleaser：
+公开 release 通过 GitHub Releases 和 GoReleaser 发布：
 
 - 面向 macOS、Linux、Windows 的 cross-platform archives
 - SHA256 checksums

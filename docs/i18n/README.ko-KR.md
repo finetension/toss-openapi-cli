@@ -53,16 +53,28 @@ credential, token cache, account header, request construction, output formatting
 이 프로젝트는 브라우저 세션 재사용이나 문서화되지 않은 내부 API가 필요한 토스증권
 웹앱 기능을 다루지 않습니다.
 
-## 소스에서 설치
+## 설치
 
-공개 릴리즈 artifact는 아직 배포하지 않았습니다. 첫 릴리즈 이후에는 다음 명령으로
-설치합니다.
+최신 릴리즈를 설치합니다.
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/finetension/toss-openapi-cli/main/install.sh | sh
 ```
 
-그 전까지는 로컬에서 빌드합니다.
+설치 후 binary를 확인합니다.
+
+```sh
+tosscli version
+tosscli doctor
+```
+
+특정 버전을 설치하려면 다음처럼 실행합니다.
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/finetension/toss-openapi-cli/main/install.sh | TOSSCLI_VERSION=v0.1.0 sh
+```
+
+## 소스에서 빌드
 
 ```sh
 go build -o bin/tosscli ./cmd/tosscli
@@ -310,9 +322,9 @@ goreleaser check
 goreleaser release --snapshot --clean
 ```
 
-## 릴리즈 계획
+## 릴리즈
 
-첫 공개 릴리즈 경로는 GitHub Releases와 GoReleaser를 기준으로 계획합니다.
+공개 릴리즈는 GitHub Releases와 GoReleaser를 기준으로 배포합니다.
 
 - macOS, Linux, Windows용 cross-platform archive
 - SHA256 checksum

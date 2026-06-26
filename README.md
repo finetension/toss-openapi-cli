@@ -35,8 +35,7 @@ terminal use:
 - Order-capable workflows with dry-run support.
 - No fallback to browser-session or undocumented web API clients.
 
-See [Roadmap](docs/ROADMAP.md) for planned public preview, release, and agent
-usage work.
+See [Roadmap](docs/ROADMAP.md) for planned public preview and agent usage work.
 
 ## Why Use This
 
@@ -55,16 +54,28 @@ Use this project when you want:
 This project does not cover Toss Securities web-app features that require
 browser session reuse or undocumented internal APIs.
 
-## Install From Source
+## Install
 
-Public release artifacts are not published yet. After the first release, install
-with:
+Install the latest release:
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/finetension/toss-openapi-cli/main/install.sh | sh
 ```
 
-Until then, build locally:
+Then verify the installed binary:
+
+```sh
+tosscli version
+tosscli doctor
+```
+
+To install a specific version:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/finetension/toss-openapi-cli/main/install.sh | TOSSCLI_VERSION=v0.1.0 sh
+```
+
+## Build From Source
 
 ```sh
 go build -o bin/tosscli ./cmd/tosscli
@@ -327,9 +338,9 @@ Create local snapshot artifacts:
 goreleaser release --snapshot --clean
 ```
 
-## Release Plan
+## Release
 
-The first public release path is planned around GitHub Releases and GoReleaser:
+Public releases are published through GitHub Releases and GoReleaser:
 
 - Cross-platform archives for macOS, Linux, and Windows.
 - SHA256 checksums.

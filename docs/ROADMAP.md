@@ -10,8 +10,8 @@ Toss Securities Open API exposed through the `invest` namespace.
 The initial `invest` command surface maps the bundled OpenAPI spec under
 `specs/invest/openapi.json`.
 
-The project is in early MVP development. Public release installers are not
-available yet.
+The project is in early MVP development. The first public release is available
+through GitHub Releases, with macOS/Linux installation through `install.sh`.
 
 ## Milestone 0: MVP Readiness
 
@@ -40,12 +40,12 @@ Status: in progress.
 
 Goal: make the CLI easy to install, verify, and try in real local environments.
 
-Planned:
+Status: in progress.
 
-- [ ] GitHub Release snapshot artifacts for macOS, Linux, and Windows
-- [ ] SHA256 checksums for release artifacts
+- [x] GitHub Release artifacts for macOS, Linux, and Windows
+- [x] SHA256 checksums for release artifacts
 - [x] `install.sh` for macOS/Linux
-- [ ] Version metadata in `tosscli version`
+- [x] Version metadata in `tosscli version`
 - [x] README install and verification flow
 - [ ] Troubleshooting guide for auth, keyring, and token expiry issues
 - [ ] Public preview release notes
@@ -117,4 +117,4 @@ Early feedback is most useful on:
 - Whether JSON output is easy to consume from scripts.
 - Whether order dry-run output is clear before live execution.
 - What `tosscli doctor` should report for real user environments.
-- Which install path would make the first public preview easiest to try.
+- Whether the current install path is easy enough for the first public preview.
