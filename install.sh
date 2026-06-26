@@ -65,14 +65,6 @@ resolve_install_dir() {
     printf '%s' "$INSTALL_DIR"
     return
   fi
-  if [ -d "$HOME/.local/bin" ]; then
-    printf '%s' "$HOME/.local/bin"
-    return
-  fi
-  if [ -w "/usr/local/bin" ]; then
-    printf '%s' "/usr/local/bin"
-    return
-  fi
   printf '%s' "$HOME/.local/bin"
 }
 
@@ -122,19 +114,16 @@ install_dir="$(resolve_install_dir)"
 mkdir -p "$install_dir"
 
 target="$install_dir/$BINARY"
-if [ -w "$install_dir" ]; then
-  cp "$tmp_dir/$BINARY" "$target"
-else
-  need_cmd sudo
-  log "Installing to $target with sudo..."
-  sudo cp "$tmp_dir/$BINARY" "$target"
-fi
+[ -w "$install_dir" ] || fail "install directory is not writable: $install_dir"
+cp "$tmp_dir/$BINARY" "$target"
 chmod +x "$target"
 
 log "Installed $BINARY to $target"
 
 if ! command -v "$BINARY" >/dev/null 2>&1; then
   log "$BINARY is installed, but $install_dir is not on PATH."
-  log "Add it to PATH or run: $target version"
+  log "Add it to PATH:"
+  log "  export PATH=\"$install_dir:\$PATH\""
+  log "Or run: $target version"
 fi
 "$target" version

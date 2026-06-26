@@ -17,6 +17,9 @@ tosscli version
 tosscli doctor
 ```
 
+The installer defaults to `~/.local/bin`. If that directory is not on `PATH`,
+follow the printed PATH guidance before running `tosscli`.
+
 To install a specific version:
 
 ```sh

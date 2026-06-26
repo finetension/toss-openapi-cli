@@ -17,6 +17,9 @@ tosscli version
 tosscli doctor
 ```
 
+installer는 기본적으로 `~/.local/bin`에 설치합니다. 이 경로가 `PATH`에 없으면
+출력된 PATH 안내를 적용한 뒤 `tosscli`를 실행하세요.
+
 특정 버전을 설치하려면 다음처럼 실행합니다.
 
 ```sh
