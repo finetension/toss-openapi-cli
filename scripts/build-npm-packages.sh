@@ -79,7 +79,7 @@ cat > "$root_dir/package.json" <<EOF
   "description": "Unofficial CLI for public Toss Open APIs.",
   "license": "MIT",
   "bin": {
-    "tosscli": "./bin/tosscli.js"
+    "tosscli": "bin/tosscli.js"
   },
   "files": ["bin"],
   "optionalDependencies": {
