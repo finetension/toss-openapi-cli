@@ -20,7 +20,7 @@ tosscli doctor
 特定の version をインストールする場合:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/finetension/toss-openapi-cli/main/install.sh | TOSSCLI_VERSION=v0.1.0 sh
+curl -fsSL https://raw.githubusercontent.com/finetension/toss-openapi-cli/main/install.sh | TOSSCLI_VERSION=v0.1.1 sh
 ```
 
 `toss-openapi-cli` は、公開されている Toss Open API だけを使う非公式の
