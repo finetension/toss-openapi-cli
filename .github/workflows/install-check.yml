@@ -1,0 +1,63 @@
+name: Install Check
+
+on:
+  release:
+    types:
+      - published
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version to install, for example v0.1.1 or latest."
+        required: true
+        default: "latest"
+
+permissions:
+  contents: read
+
+jobs:
+  install:
+    name: Install (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - macos-latest
+
+    steps:
+      - name: Resolve version
+        id: version
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "release" ]; then
+            version="${{ github.event.release.tag_name }}"
+          else
+            version="${{ inputs.version }}"
+          fi
+          printf 'version=%s\n' "$version" >> "$GITHUB_OUTPUT"
+
+      - name: Install tosscli
+        shell: bash
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          install_dir="$(mktemp -d)"
+          if [ "$VERSION" = "latest" ]; then
+            install_ref="main"
+          else
+            install_ref="$VERSION"
+          fi
+
+          curl -fsSL "https://raw.githubusercontent.com/${REPOSITORY}/${install_ref}/install.sh" \
+            | TOSSCLI_INSTALL_DIR="$install_dir" TOSSCLI_VERSION="$VERSION" sh
+
+          "$install_dir/tosscli" version | tee version.json
+
+          if [ "$VERSION" != "latest" ]; then
+            expected="${VERSION#v}"
+            grep "\"version\": \"$expected\"" version.json
+          fi
