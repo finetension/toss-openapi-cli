@@ -4,13 +4,19 @@ English | [한국어](docs/i18n/README.ko-KR.md) | [简体中文](docs/i18n/READ
 
 ## Install
 
-Install the latest release:
+Install the CLI:
 
 ```sh
 npm install -g toss-openapi-cli
 ```
 
-Then verify the installed binary:
+Install the companion agent skill:
+
+```sh
+npx skills add finetension/tosscli-skills
+```
+
+Then verify the installed CLI:
 
 ```sh
 tosscli version
@@ -102,19 +108,6 @@ curl -fsSL https://raw.githubusercontent.com/finetension/toss-openapi-cli/main/i
 
 The standalone installer defaults to `~/.local/bin`. If that directory is not
 on `PATH`, follow the printed PATH guidance before running `tosscli`.
-
-## Agent Skill
-
-The companion skill package is published at
-[finetension/tosscli-skills](https://github.com/finetension/tosscli-skills).
-It teaches agents to use the installed `tosscli` help, JSON output, and
-dry-run or preview flows.
-
-When the Skills CLI is available:
-
-```sh
-npx skills add finetension/tosscli-skills
-```
 
 ## Authentication
 

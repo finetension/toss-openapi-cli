@@ -4,13 +4,19 @@
 
 ## 安装
 
-安装最新 release：
+安装 CLI：
 
 ```sh
 npm install -g toss-openapi-cli
 ```
 
-安装后验证 binary：
+安装配套的 Agent skill：
+
+```sh
+npx skills add finetension/tosscli-skills
+```
+
+安装后验证 CLI：
 
 ```sh
 tosscli version

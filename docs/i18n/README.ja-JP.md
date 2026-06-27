@@ -4,13 +4,19 @@
 
 ## インストール
 
-最新 release をインストールします。
+CLI をインストールします。
 
 ```sh
 npm install -g toss-openapi-cli
 ```
 
-インストール後に binary を確認します。
+併用する Agent skill をインストールします。
+
+```sh
+npx skills add finetension/tosscli-skills
+```
+
+インストール後に CLI を確認します。
 
 ```sh
 tosscli version
