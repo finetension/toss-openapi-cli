@@ -1045,6 +1045,35 @@ func TestInvestMarketDataCandlesOutputsCandles(t *testing.T) {
 	}
 }
 
+func TestInvestMarketDataCandlesRejectsInvalidInterval(t *testing.T) {
+	marketData := &fakeMarketDataAPI{}
+	stdout, stderr, exitCode := ExecuteForTestWithDeps(Dependencies{
+		EnvLookup:  testEnvAccessToken,
+		MarketData: marketData,
+	}, "invest", "market-data", "candles", "--symbol", "AAPL", "--interval", "5m")
+
+	if exitCode != apperr.ExitUsage {
+		t.Fatalf("exitCode = %d, want %d; stdout=%s stderr=%s", exitCode, apperr.ExitUsage, stdout, stderr)
+	}
+	if stderr != "" {
+		t.Fatalf("stderr = %q, want empty", stderr)
+	}
+	if marketData.accessToken != "" {
+		t.Fatalf("market data API should not be called; accessToken = %q", marketData.accessToken)
+	}
+	var got struct {
+		Error struct {
+			Code string `json:"code"`
+		} `json:"error"`
+	}
+	if err := json.Unmarshal([]byte(stdout), &got); err != nil {
+		t.Fatalf("stdout is not valid JSON: %v\n%s", err, stdout)
+	}
+	if got.Error.Code != apperr.CodeUsage {
+		t.Fatalf("error code = %q", got.Error.Code)
+	}
+}
+
 func TestInvestMarketInfoExchangeRateOutputsRate(t *testing.T) {
 	marketInfo := &fakeMarketInfoAPI{
 		exchangeRateResponse: invest.ExchangeRateResponse{
@@ -1077,6 +1106,35 @@ func TestInvestMarketInfoExchangeRateOutputsRate(t *testing.T) {
 	}
 	if compactJSON(t, got.Result) != compactJSON(t, marketInfo.exchangeRateResponse.Result) {
 		t.Fatalf("result = %s", got.Result)
+	}
+}
+
+func TestInvestMarketInfoExchangeRateRejectsInvalidCurrency(t *testing.T) {
+	marketInfo := &fakeMarketInfoAPI{}
+	stdout, stderr, exitCode := ExecuteForTestWithDeps(Dependencies{
+		EnvLookup:  testEnvAccessToken,
+		MarketInfo: marketInfo,
+	}, "invest", "market-info", "exchange-rate", "--base-currency", "EUR", "--quote-currency", "KRW")
+
+	if exitCode != apperr.ExitUsage {
+		t.Fatalf("exitCode = %d, want %d; stdout=%s stderr=%s", exitCode, apperr.ExitUsage, stdout, stderr)
+	}
+	if stderr != "" {
+		t.Fatalf("stderr = %q, want empty", stderr)
+	}
+	if marketInfo.accessToken != "" {
+		t.Fatalf("market info API should not be called; accessToken = %q", marketInfo.accessToken)
+	}
+	var got struct {
+		Error struct {
+			Code string `json:"code"`
+		} `json:"error"`
+	}
+	if err := json.Unmarshal([]byte(stdout), &got); err != nil {
+		t.Fatalf("stdout is not valid JSON: %v\n%s", err, stdout)
+	}
+	if got.Error.Code != apperr.CodeUsage {
+		t.Fatalf("error code = %q", got.Error.Code)
 	}
 }
 
@@ -1157,6 +1215,36 @@ func TestInvestOrderInfoBuyingPowerOutputsBuyingPower(t *testing.T) {
 	}
 	if got.Result.Currency != "USD" || got.Result.CashBuyingPower != "3500.5" {
 		t.Fatalf("buying power = %+v", got.Result)
+	}
+}
+
+func TestInvestOrderInfoBuyingPowerRejectsInvalidCurrency(t *testing.T) {
+	orderInfo := &fakeOrderInfoAPI{}
+	stdout, stderr, exitCode := ExecuteForTestWithDeps(Dependencies{
+		SecretStore: auth.NewMemorySecretStore(),
+		EnvLookup:   testEnvAccessToken,
+		OrderInfo:   orderInfo,
+	}, "invest", "order-info", "buying-power", "--account-seq", "1", "--currency", "EUR")
+
+	if exitCode != apperr.ExitUsage {
+		t.Fatalf("exitCode = %d, want %d; stdout=%s stderr=%s", exitCode, apperr.ExitUsage, stdout, stderr)
+	}
+	if stderr != "" {
+		t.Fatalf("stderr = %q, want empty", stderr)
+	}
+	if orderInfo.accessToken != "" {
+		t.Fatalf("order info API should not be called; accessToken = %q", orderInfo.accessToken)
+	}
+	var got struct {
+		Error struct {
+			Code string `json:"code"`
+		} `json:"error"`
+	}
+	if err := json.Unmarshal([]byte(stdout), &got); err != nil {
+		t.Fatalf("stdout is not valid JSON: %v\n%s", err, stdout)
+	}
+	if got.Error.Code != apperr.CodeUsage {
+		t.Fatalf("error code = %q", got.Error.Code)
 	}
 }
 
@@ -1349,6 +1437,36 @@ func TestInvestOrderHistoryListRequiresStatus(t *testing.T) {
 	}
 }
 
+func TestInvestOrderHistoryListRejectsInvalidStatus(t *testing.T) {
+	orderHistory := &fakeOrderHistoryAPI{}
+	stdout, stderr, exitCode := ExecuteForTestWithDeps(Dependencies{
+		SecretStore:  auth.NewMemorySecretStore(),
+		EnvLookup:    testEnvAccessToken,
+		OrderHistory: orderHistory,
+	}, "invest", "order-history", "list", "--account-seq", "1", "--status", "PENDING")
+
+	if exitCode != apperr.ExitUsage {
+		t.Fatalf("exitCode = %d, want %d; stdout=%s stderr=%s", exitCode, apperr.ExitUsage, stdout, stderr)
+	}
+	if stderr != "" {
+		t.Fatalf("stderr = %q, want empty", stderr)
+	}
+	if orderHistory.accessToken != "" {
+		t.Fatalf("order history API should not be called; accessToken = %q", orderHistory.accessToken)
+	}
+	var got struct {
+		Error struct {
+			Code string `json:"code"`
+		} `json:"error"`
+	}
+	if err := json.Unmarshal([]byte(stdout), &got); err != nil {
+		t.Fatalf("stdout is not valid JSON: %v\n%s", err, stdout)
+	}
+	if got.Error.Code != apperr.CodeUsage {
+		t.Fatalf("error code = %q", got.Error.Code)
+	}
+}
+
 func TestInvestOrderCreateCreatesOrder(t *testing.T) {
 	orderAPI := &fakeOrderAPI{
 		createResponse: invest.OrderMutationResponse{
@@ -1486,6 +1604,58 @@ func TestInvestOrderCreateRejectsPriceForMarket(t *testing.T) {
 	}
 }
 
+func TestInvestOrderCreateRejectsInvalidEnums(t *testing.T) {
+	cases := []struct {
+		name string
+		args []string
+	}{
+		{
+			name: "side",
+			args: []string{"invest", "order", "create", "--account-seq", "1", "--symbol", "AAPL", "--side", "HOLD", "--order-type", "LIMIT", "--quantity", "1", "--price", "100"},
+		},
+		{
+			name: "order-type",
+			args: []string{"invest", "order", "create", "--account-seq", "1", "--symbol", "AAPL", "--side", "BUY", "--order-type", "STOP", "--quantity", "1", "--price", "100"},
+		},
+		{
+			name: "time-in-force",
+			args: []string{"invest", "order", "create", "--account-seq", "1", "--symbol", "AAPL", "--side", "BUY", "--order-type", "LIMIT", "--time-in-force", "GTC", "--quantity", "1", "--price", "100"},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			orderAPI := &fakeOrderAPI{}
+			stdout, stderr, exitCode := ExecuteForTestWithDeps(Dependencies{
+				SecretStore: auth.NewMemorySecretStore(),
+				EnvLookup:   testEnvAccessToken,
+				OrderAPI:    orderAPI,
+			}, tc.args...)
+
+			if exitCode != apperr.ExitUsage {
+				t.Fatalf("exitCode = %d, want %d; stdout=%s stderr=%s", exitCode, apperr.ExitUsage, stdout, stderr)
+			}
+			if stderr != "" {
+				t.Fatalf("stderr = %q, want empty", stderr)
+			}
+			if orderAPI.accessToken != "" {
+				t.Fatalf("order API should not be called; accessToken = %q", orderAPI.accessToken)
+			}
+			var got struct {
+				Error struct {
+					Code string `json:"code"`
+				} `json:"error"`
+			}
+			if err := json.Unmarshal([]byte(stdout), &got); err != nil {
+				t.Fatalf("stdout is not valid JSON: %v\n%s", err, stdout)
+			}
+			if got.Error.Code != apperr.CodeUsage {
+				t.Fatalf("error code = %q", got.Error.Code)
+			}
+		})
+	}
+}
+
 func TestInvestOrderModifyModifiesOrder(t *testing.T) {
 	orderAPI := &fakeOrderAPI{
 		modifyResponse: invest.OrderMutationResponse{
@@ -1589,6 +1759,36 @@ func TestInvestOrderModifyRejectsPriceForMarket(t *testing.T) {
 	}
 	if got.Error.Code != apperr.CodeUsage || got.Error.Message != "--price is not allowed for MARKET orders" {
 		t.Fatalf("error = %+v", got.Error)
+	}
+}
+
+func TestInvestOrderModifyRejectsInvalidOrderType(t *testing.T) {
+	orderAPI := &fakeOrderAPI{}
+	stdout, stderr, exitCode := ExecuteForTestWithDeps(Dependencies{
+		SecretStore: auth.NewMemorySecretStore(),
+		EnvLookup:   testEnvAccessToken,
+		OrderAPI:    orderAPI,
+	}, "invest", "order", "modify", "order-1", "--account-seq", "1", "--order-type", "STOP", "--quantity", "1", "--price", "100")
+
+	if exitCode != apperr.ExitUsage {
+		t.Fatalf("exitCode = %d, want %d; stdout=%s stderr=%s", exitCode, apperr.ExitUsage, stdout, stderr)
+	}
+	if stderr != "" {
+		t.Fatalf("stderr = %q, want empty", stderr)
+	}
+	if orderAPI.accessToken != "" {
+		t.Fatalf("order API should not be called; accessToken = %q", orderAPI.accessToken)
+	}
+	var got struct {
+		Error struct {
+			Code string `json:"code"`
+		} `json:"error"`
+	}
+	if err := json.Unmarshal([]byte(stdout), &got); err != nil {
+		t.Fatalf("stdout is not valid JSON: %v\n%s", err, stdout)
+	}
+	if got.Error.Code != apperr.CodeUsage {
+		t.Fatalf("error code = %q", got.Error.Code)
 	}
 }
 

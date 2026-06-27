@@ -693,6 +693,9 @@ func newInvestMarketDataCandlesCommand(deps Dependencies) *cobra.Command {
 			if strings.TrimSpace(interval) == "" {
 				return apperr.Usage("--interval is required")
 			}
+			if _, err := allowedValue("--interval", interval, "1m", "1d"); err != nil {
+				return err
+			}
 			return nil
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -706,7 +709,7 @@ func newInvestMarketDataCandlesCommand(deps Dependencies) *cobra.Command {
 			}
 			params := invest.CandleParams{
 				Symbol:   strings.TrimSpace(symbol),
-				Interval: strings.TrimSpace(interval),
+				Interval: strings.ToLower(strings.TrimSpace(interval)),
 				Count:    count,
 				Before:   strings.TrimSpace(before),
 			}
@@ -759,6 +762,12 @@ func newInvestMarketInfoExchangeRateCommand(deps Dependencies) *cobra.Command {
 			}
 			if strings.TrimSpace(quoteCurrency) == "" {
 				return apperr.Usage("--quote-currency is required")
+			}
+			if _, err := allowedValue("--base-currency", baseCurrency, "KRW", "USD"); err != nil {
+				return err
+			}
+			if _, err := allowedValue("--quote-currency", quoteCurrency, "KRW", "USD"); err != nil {
+				return err
 			}
 			return nil
 		},
@@ -994,6 +1003,9 @@ func newInvestOrderInfoBuyingPowerCommand(deps Dependencies) *cobra.Command {
 			if strings.TrimSpace(currency) == "" {
 				return apperr.Usage("--currency is required")
 			}
+			if _, err := allowedValue("--currency", currency, "KRW", "USD"); err != nil {
+				return err
+			}
 			return nil
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -1005,7 +1017,7 @@ func newInvestOrderInfoBuyingPowerCommand(deps Dependencies) *cobra.Command {
 			if orderInfo == nil {
 				orderInfo = invest.NewClient("", nil)
 			}
-			buyingPower, err := orderInfo.GetBuyingPower(context.Background(), accessToken, accountSeq, strings.TrimSpace(currency))
+			buyingPower, err := orderInfo.GetBuyingPower(context.Background(), accessToken, accountSeq, strings.ToUpper(strings.TrimSpace(currency)))
 			if err != nil {
 				return err
 			}
@@ -1106,6 +1118,9 @@ func newInvestOrderHistoryListCommand(deps Dependencies) *cobra.Command {
 			if strings.TrimSpace(status) == "" {
 				return apperr.Usage("--status is required")
 			}
+			if _, err := allowedValue("--status", status, "OPEN", "CLOSED"); err != nil {
+				return err
+			}
 			return nil
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -1118,7 +1133,7 @@ func newInvestOrderHistoryListCommand(deps Dependencies) *cobra.Command {
 				orderHistory = invest.NewClient("", nil)
 			}
 			params := invest.OrderListParams{
-				Status: strings.TrimSpace(status),
+				Status: strings.ToUpper(strings.TrimSpace(status)),
 				Symbol: strings.TrimSpace(symbol),
 				From:   strings.TrimSpace(from),
 				To:     strings.TrimSpace(to),
@@ -1233,6 +1248,17 @@ func newInvestOrderCreateCommand(deps Dependencies) *cobra.Command {
 			if strings.TrimSpace(orderType) == "" {
 				return apperr.Usage("--order-type is required")
 			}
+			if _, err := allowedValue("--side", side, "BUY", "SELL"); err != nil {
+				return err
+			}
+			if _, err := allowedValue("--order-type", orderType, "LIMIT", "MARKET"); err != nil {
+				return err
+			}
+			if strings.TrimSpace(timeInForce) != "" {
+				if _, err := allowedValue("--time-in-force", timeInForce, "DAY", "CLS", "OPG"); err != nil {
+					return err
+				}
+			}
 			hasQuantity := strings.TrimSpace(quantity) != ""
 			hasOrderAmount := strings.TrimSpace(orderAmount) != ""
 			if hasQuantity == hasOrderAmount {
@@ -1311,6 +1337,9 @@ func newInvestOrderModifyCommand(deps Dependencies) *cobra.Command {
 			}
 			if strings.TrimSpace(orderType) == "" {
 				return apperr.Usage("--order-type is required")
+			}
+			if _, err := allowedValue("--order-type", orderType, "LIMIT", "MARKET"); err != nil {
+				return err
 			}
 			if strings.EqualFold(strings.TrimSpace(orderType), "LIMIT") && strings.TrimSpace(price) == "" {
 				return apperr.Usage("--price is required for LIMIT orders")
@@ -1407,6 +1436,16 @@ func newInvestOrderCancelCommand(deps Dependencies) *cobra.Command {
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Build the request without sending it.")
 	applyHelp(cmd, "cancelOrder")
 	return cmd
+}
+
+func allowedValue(flagName string, value string, allowed ...string) (string, error) {
+	trimmed := strings.TrimSpace(value)
+	for _, candidate := range allowed {
+		if strings.EqualFold(trimmed, candidate) {
+			return candidate, nil
+		}
+	}
+	return "", apperr.Usage(fmt.Sprintf("%s must be one of %s", flagName, strings.Join(allowed, ", ")))
 }
 
 func buildOrderCreateRequest(clientOrderID string, symbol string, side string, orderType string, timeInForce string, quantity string, price string, orderAmount string, confirmHighValueOrder bool) (invest.OrderCreateRequest, error) {
