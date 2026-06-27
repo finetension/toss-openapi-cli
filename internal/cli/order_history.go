@@ -11,10 +11,7 @@ import (
 )
 
 func newInvestOrderHistoryCommand(deps Dependencies) *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "order-history",
-		Short: "Read Toss Invest order history.",
-	}
+	cmd := newGroupCommand("order-history", "Read Toss Invest order history.")
 	cmd.AddCommand(newInvestOrderHistoryListCommand(deps))
 	cmd.AddCommand(newInvestOrderHistoryGetCommand(deps))
 	return cmd

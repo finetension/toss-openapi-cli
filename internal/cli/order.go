@@ -14,10 +14,7 @@ import (
 )
 
 func newInvestOrderCommand(deps Dependencies) *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "order",
-		Short: "Manage Toss Invest orders.",
-	}
+	cmd := newGroupCommand("order", "Manage Toss Invest orders.")
 	cmd.AddCommand(newInvestOrderCreateCommand(deps))
 	cmd.AddCommand(newInvestOrderModifyCommand(deps))
 	cmd.AddCommand(newInvestOrderCancelCommand(deps))

@@ -11,10 +11,7 @@ import (
 )
 
 func newInvestOrderInfoCommand(deps Dependencies) *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "order-info",
-		Short: "Read Toss Invest order information.",
-	}
+	cmd := newGroupCommand("order-info", "Read Toss Invest order information.")
 	cmd.AddCommand(newInvestOrderInfoBuyingPowerCommand(deps))
 	cmd.AddCommand(newInvestOrderInfoCommissionsCommand(deps))
 	cmd.AddCommand(newInvestOrderInfoSellableQuantityCommand(deps))

@@ -11,10 +11,7 @@ import (
 )
 
 func newInvestMarketDataCommand(deps Dependencies) *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "market-data",
-		Short: "Read Toss Invest market data.",
-	}
+	cmd := newGroupCommand("market-data", "Read Toss Invest market data.")
 	cmd.AddCommand(newInvestMarketDataOrderbookCommand(deps))
 	cmd.AddCommand(newInvestMarketDataCandlesCommand(deps))
 	cmd.AddCommand(newInvestMarketDataPriceLimitsCommand(deps))

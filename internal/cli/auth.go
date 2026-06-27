@@ -18,10 +18,7 @@ import (
 )
 
 func newInvestAuthCommand(deps Dependencies) *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "auth",
-		Short: "Manage Toss Invest authentication.",
-	}
+	cmd := newGroupCommand("auth", "Manage Toss Invest authentication.")
 	cmd.AddCommand(newInvestAuthLoginCommand(deps))
 	cmd.AddCommand(newInvestAuthLogoutCommand(deps))
 	cmd.AddCommand(newInvestAuthStatusCommand(deps))

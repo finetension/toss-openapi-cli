@@ -11,10 +11,7 @@ import (
 )
 
 func newInvestStockInfoCommand(deps Dependencies) *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "stock-info",
-		Short: "Read Toss Invest stock information.",
-	}
+	cmd := newGroupCommand("stock-info", "Read Toss Invest stock information.")
 	cmd.AddCommand(newInvestStockInfoStocksCommand(deps))
 	cmd.AddCommand(newInvestStockInfoWarningsCommand(deps))
 	return cmd

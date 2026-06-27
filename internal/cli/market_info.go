@@ -11,10 +11,7 @@ import (
 )
 
 func newInvestMarketInfoCommand(deps Dependencies) *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "market-info",
-		Short: "Read Toss Invest market information.",
-	}
+	cmd := newGroupCommand("market-info", "Read Toss Invest market information.")
 	cmd.AddCommand(newInvestMarketInfoExchangeRateCommand(deps))
 	cmd.AddCommand(newInvestMarketInfoCalendarCommand(deps))
 	return cmd
@@ -77,10 +74,7 @@ func newInvestMarketInfoExchangeRateCommand(deps Dependencies) *cobra.Command {
 }
 
 func newInvestMarketInfoCalendarCommand(deps Dependencies) *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "calendar",
-		Short: "Get market calendars.",
-	}
+	cmd := newGroupCommand("calendar", "Get market calendars.")
 	cmd.AddCommand(newInvestMarketInfoCalendarMarketCommand(deps, "kr", "KR"))
 	cmd.AddCommand(newInvestMarketInfoCalendarMarketCommand(deps, "us", "US"))
 	return cmd

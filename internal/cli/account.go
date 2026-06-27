@@ -10,10 +10,7 @@ import (
 )
 
 func newInvestAccountCommand(deps Dependencies) *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "account",
-		Short: "Manage Toss Invest accounts.",
-	}
+	cmd := newGroupCommand("account", "Manage Toss Invest accounts.")
 	cmd.AddCommand(newInvestAccountListCommand(deps))
 	return cmd
 }

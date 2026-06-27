@@ -109,6 +109,51 @@ func TestUnknownCommandOutputsStructuredUsageError(t *testing.T) {
 	}
 }
 
+func TestUnknownInvestSubcommandsOutputStructuredUsageError(t *testing.T) {
+	tests := [][]string{
+		{"invest", "nope"},
+		{"invest", "account", "nope"},
+		{"invest", "asset", "nope"},
+		{"invest", "auth", "nope"},
+		{"invest", "market-data", "nope"},
+		{"invest", "market-info", "nope"},
+		{"invest", "market-info", "calendar", "today"},
+		{"invest", "order", "nope"},
+		{"invest", "order-history", "nope"},
+		{"invest", "order-info", "nope"},
+		{"invest", "stock-info", "nope"},
+	}
+
+	for _, args := range tests {
+		t.Run(strings.Join(args, " "), func(t *testing.T) {
+			stdout, stderr, exitCode := ExecuteForTest(args...)
+			if exitCode != apperr.ExitUsage {
+				t.Fatalf("exitCode = %d, want %d; stdout=%s stderr=%s", exitCode, apperr.ExitUsage, stdout, stderr)
+			}
+			if stderr != "" {
+				t.Fatalf("stderr = %q, want empty", stderr)
+			}
+
+			var got struct {
+				Error struct {
+					Code    string `json:"code"`
+					Message string `json:"message"`
+					Reason  string `json:"reason"`
+				} `json:"error"`
+			}
+			if err := json.Unmarshal([]byte(stdout), &got); err != nil {
+				t.Fatalf("stdout is not valid JSON: %v\n%s", err, stdout)
+			}
+			if got.Error.Code != apperr.CodeUsage {
+				t.Fatalf("error.code = %q, want %q; stdout=%s", got.Error.Code, apperr.CodeUsage, stdout)
+			}
+			if !strings.Contains(got.Error.Message, "unknown command") {
+				t.Fatalf("error.message = %q, want unknown command", got.Error.Message)
+			}
+		})
+	}
+}
+
 func TestDoctorOutputsReadinessChecks(t *testing.T) {
 	accountAPI := &fakeAccountAPI{
 		response: invest.AccountsResponse{
