@@ -74,6 +74,46 @@ jobs:
         run: scripts/publish-npm-packages.sh "${{ steps.version.outputs.version }}"
 
       - name: Verify npm metadata
+        shell: bash
         run: |
-          npm view toss-openapi-cli@${{ steps.version.outputs.version }} version
-          npm view @finetension/tosscli-linux-x64@${{ steps.version.outputs.version }} version
+          set -euo pipefail
+
+          version="${{ steps.version.outputs.version }}"
+
+          for attempt in $(seq 1 60); do
+            if npm view "toss-openapi-cli@${version}" version; then
+              break
+            fi
+
+            if [ "$attempt" -eq 60 ]; then
+              echo "npm metadata for toss-openapi-cli@${version} was not visible after retrying." >&2
+              exit 1
+            fi
+
+            sleep 5
+          done
+
+      - name: Verify npm install
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          version="${{ steps.version.outputs.version }}"
+
+          for attempt in $(seq 1 60); do
+            npm uninstall -g toss-openapi-cli @finetension/tosscli-linux-x64 || true
+
+            if npm install -g "toss-openapi-cli@${version}" &&
+              tosscli version &&
+              tosscli --version &&
+              npm ls -g --depth=1 toss-openapi-cli @finetension/tosscli-linux-x64; then
+              break
+            fi
+
+            if [ "$attempt" -eq 60 ]; then
+              echo "npm install smoke test failed after retrying." >&2
+              exit 1
+            fi
+
+            sleep 5
+          done
