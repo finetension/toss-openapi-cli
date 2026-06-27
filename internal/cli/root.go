@@ -32,6 +32,7 @@ type Dependencies struct {
 	SecretStore  auth.SecretStore
 	EnvLookup    auth.EnvLookup
 	TokenIssuer  auth.TokenIssuer
+	PublicIP     PublicIPResolver
 	AccountAPI   AccountAPI
 	MarketData   MarketDataAPI
 	MarketInfo   MarketInfoAPI
@@ -44,6 +45,10 @@ type Dependencies struct {
 
 type AccountAPI interface {
 	GetAccounts(ctx context.Context, accessToken string) (invest.AccountsResponse, error)
+}
+
+type PublicIPResolver interface {
+	PublicIP(ctx context.Context) (string, error)
 }
 
 type MarketDataAPI interface {
@@ -182,6 +187,7 @@ type doctorCheck struct {
 	Name         string `json:"name"`
 	Status       string `json:"status"`
 	Message      string `json:"message,omitempty"`
+	Hint         string `json:"hint,omitempty"`
 	Source       string `json:"source,omitempty"`
 	Version      string `json:"version,omitempty"`
 	Commit       string `json:"commit,omitempty"`
@@ -192,9 +198,12 @@ type doctorCheck struct {
 	Valid        *bool  `json:"valid,omitempty"`
 	ExpiresAt    string `json:"expiresAt,omitempty"`
 	AccountCount *int   `json:"accountCount,omitempty"`
+	PublicIP     string `json:"publicIp,omitempty"`
 }
 
 func newDoctorCommand(deps Dependencies) *cobra.Command {
+	var showIP bool
+
 	cmd := &cobra.Command{
 		Use:   "doctor",
 		Short: "Check local Toss Invest CLI readiness.",
@@ -205,25 +214,29 @@ func newDoctorCommand(deps Dependencies) *cobra.Command {
 			return nil
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			report := runDoctor(context.Background(), deps)
+			report := runDoctor(context.Background(), deps, showIP)
 			if err := output.WriteJSON(cmd.OutOrStdout(), report); err != nil {
 				return apperr.Unexpected(err)
 			}
 			return nil
 		},
 	}
+	cmd.Flags().BoolVar(&showIP, "show-ip", false, "Query and show the public IP address visible to external services.")
 	applyHelp(cmd, "cli:doctor")
 	return cmd
 }
 
-func runDoctor(ctx context.Context, deps Dependencies) doctorReport {
+func runDoctor(ctx context.Context, deps Dependencies, showIP bool) doctorReport {
 	service := auth.NewService(deps.SecretStore, deps.EnvLookup)
 	status := service.Status()
 
 	checks := []doctorCheck{
 		doctorVersionCheck(),
-		doctorCredentialsCheck(status.Credentials, status.Token),
 	}
+	if showIP {
+		checks = append(checks, doctorPublicIPCheck(ctx, deps))
+	}
+	checks = append(checks, doctorCredentialsCheck(status.Credentials, status.Token))
 
 	issuer := deps.TokenIssuer
 	if issuer == nil {
@@ -245,6 +258,7 @@ func runDoctor(ctx context.Context, deps Dependencies) doctorReport {
 		if err != nil {
 			accountCheck.Status = "fail"
 			accountCheck.Message = doctorErrorMessage(err)
+			accountCheck.Hint = doctorErrorHint(err)
 		} else {
 			accountCount := len(accounts.Result)
 			accountCheck.Status = "ok"
@@ -279,6 +293,25 @@ func doctorVersionCheck() doctorCheck {
 	}
 }
 
+func doctorPublicIPCheck(ctx context.Context, deps Dependencies) doctorCheck {
+	check := doctorCheck{
+		Name:   "public-ip",
+		Status: "fail",
+	}
+	resolver := deps.PublicIP
+	if resolver == nil {
+		resolver = defaultPublicIPResolver{}
+	}
+	publicIP, err := resolver.PublicIP(ctx)
+	if err != nil {
+		check.Message = doctorErrorMessage(err)
+		return check
+	}
+	check.Status = "ok"
+	check.PublicIP = publicIP
+	return check
+}
+
 func doctorCredentialsCheck(status auth.CredentialStatus, tokenStatus auth.TokenStatus) doctorCheck {
 	check := doctorCheck{
 		Name:   "credentials",
@@ -301,13 +334,24 @@ func doctorCredentialsCheck(status auth.CredentialStatus, tokenStatus auth.Token
 func doctorAccessToken(ctx context.Context, service *auth.Service, issuer auth.TokenIssuer) (string, auth.TokenStatus, error) {
 	accessToken, err := service.AccessToken(ctx, issuer)
 	if err != nil {
-		return "", auth.TokenStatus{Source: "missing"}, err
+		return "", doctorFailedTokenStatus(service), err
 	}
 	tokenStatus, statusErr := service.Token(ctx, issuer)
 	if statusErr != nil {
-		return accessToken, auth.TokenStatus{Source: "missing"}, statusErr
+		return accessToken, doctorFailedTokenStatus(service), statusErr
 	}
 	return accessToken, tokenStatus, nil
+}
+
+func doctorFailedTokenStatus(service *auth.Service) auth.TokenStatus {
+	status := service.Status()
+	if status.Credentials.Configured {
+		return auth.TokenStatus{Source: status.Credentials.Source}
+	}
+	if status.Token.Source != "" {
+		return status.Token
+	}
+	return auth.TokenStatus{Source: "missing"}
 }
 
 func doctorTokenCheck(status auth.TokenStatus, err error) doctorCheck {
@@ -320,6 +364,7 @@ func doctorTokenCheck(status auth.TokenStatus, err error) doctorCheck {
 	}
 	if err != nil {
 		check.Message = doctorErrorMessage(err)
+		check.Hint = doctorErrorHint(err)
 		return check
 	}
 	if status.Configured && status.Valid {
@@ -338,6 +383,13 @@ func doctorErrorMessage(err error) string {
 		return app.Message
 	}
 	return err.Error()
+}
+
+func doctorErrorHint(err error) string {
+	if isIPAllowlistError(err) {
+		return ipAllowlistHint
+	}
+	return ""
 }
 
 func newInvestCommand(deps Dependencies) *cobra.Command {
@@ -1611,7 +1663,11 @@ func normalizeCobraError(err error) error {
 		if message == "" {
 			message = "Toss Invest API request failed"
 		}
-		return apperr.New(code, message, apperr.ExitAPI)
+		app := apperr.New(code, message, apperr.ExitAPI)
+		if isIPAllowlistError(err) {
+			app.Hint = ipAllowlistHint
+		}
+		return app
 	}
 	msg := err.Error()
 	if strings.HasPrefix(msg, "unknown command") ||

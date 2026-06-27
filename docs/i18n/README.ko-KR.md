@@ -141,6 +141,25 @@ tosscli invest auth login \
 export TOSS_INVEST_ACCESS_TOKEN="..."
 ```
 
+로그인 또는 API 호출이 `access_denied`, `IP address not allowed`로 실패하면
+Toss Open API credential의 허용 IP 설정을 확인하세요. CLI는 서버 측 IP 제한을
+우회할 수 없습니다.
+
+외부 서비스에서 보이는 현재 public IP를 확인하려면 다음 명령을 실행합니다.
+
+```sh
+tosscli doctor --show-ip
+```
+
+허용 IP 추가 방법:
+
+1. <https://www.tossinvest.com>에 접속합니다.
+2. 로그인합니다.
+3. 우측 하단 설정 버튼을 누릅니다.
+4. Open API 탭을 엽니다.
+5. IP 추가 버튼을 누릅니다.
+6. IP를 입력한 뒤 추가 버튼을 누릅니다.
+
 ## 빠른 시작
 
 로컬 준비 상태를 확인합니다.

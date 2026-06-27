@@ -221,6 +221,38 @@ func TestDoctorSupportsDirectAccessTokenWithoutCredentials(t *testing.T) {
 	}
 }
 
+func TestDoctorShowIPIncludesPublicIPCheck(t *testing.T) {
+	accountAPI := &fakeAccountAPI{
+		response: invest.AccountsResponse{Result: []invest.Account{{AccountSeq: 1}}},
+	}
+
+	stdout, stderr, exitCode := ExecuteForTestWithDeps(Dependencies{
+		SecretStore: auth.NewMemorySecretStore(),
+		EnvLookup:   testEnvAccessToken,
+		PublicIP:    fakePublicIPResolver{publicIP: "203.0.113.10"},
+		AccountAPI:  accountAPI,
+	}, "doctor", "--show-ip")
+
+	if exitCode != apperr.ExitSuccess {
+		t.Fatalf("exitCode = %d, want %d; stdout=%s stderr=%s", exitCode, apperr.ExitSuccess, stdout, stderr)
+	}
+	if stderr != "" {
+		t.Fatalf("stderr = %q, want empty", stderr)
+	}
+
+	var got struct {
+		Status string            `json:"status"`
+		Checks []testDoctorCheck `json:"checks"`
+	}
+	if err := json.Unmarshal([]byte(stdout), &got); err != nil {
+		t.Fatalf("stdout is not valid JSON: %v\n%s", err, stdout)
+	}
+	checks := doctorChecksByName(got.Checks)
+	if checks["public-ip"].Status != "ok" || checks["public-ip"].PublicIP != "203.0.113.10" {
+		t.Fatalf("public-ip check = %+v", checks["public-ip"])
+	}
+}
+
 func TestDoctorReportsMissingCredentialsAndSkipsAccountList(t *testing.T) {
 	stdout, stderr, exitCode := ExecuteForTestWithDeps(Dependencies{
 		SecretStore: auth.NewMemorySecretStore(),
@@ -254,6 +286,98 @@ func TestDoctorReportsMissingCredentialsAndSkipsAccountList(t *testing.T) {
 	}
 	if checks["account-list"].Status != "skipped" || checks["account-list"].Message == "" {
 		t.Fatalf("account-list check = %+v", checks["account-list"])
+	}
+}
+
+func TestDoctorReportsTokenIssueFailureWithCredentialSource(t *testing.T) {
+	stdout, stderr, exitCode := ExecuteForTestWithDeps(Dependencies{
+		SecretStore: auth.NewMemorySecretStore(),
+		EnvLookup: func(key string) (string, bool) {
+			values := map[string]string{
+				"TOSS_INVEST_CLIENT_ID":     "client-id",
+				"TOSS_INVEST_CLIENT_SECRET": "client-secret",
+			}
+			value, ok := values[key]
+			return value, ok
+		},
+		TokenIssuer: &fakeTokenIssuer{err: &invest.APIError{
+			Code:    "access_denied",
+			Message: "IP address not allowed",
+		}},
+		AccountAPI: &fakeAccountAPI{},
+	}, "doctor")
+
+	if exitCode != apperr.ExitSuccess {
+		t.Fatalf("exitCode = %d, want %d; stdout=%s stderr=%s", exitCode, apperr.ExitSuccess, stdout, stderr)
+	}
+	if stderr != "" {
+		t.Fatalf("stderr = %q, want empty", stderr)
+	}
+
+	var got struct {
+		Status string            `json:"status"`
+		Checks []testDoctorCheck `json:"checks"`
+	}
+	if err := json.Unmarshal([]byte(stdout), &got); err != nil {
+		t.Fatalf("stdout is not valid JSON: %v\n%s", err, stdout)
+	}
+	if got.Status != "fail" {
+		t.Fatalf("status = %q, want fail; stdout=%s", got.Status, stdout)
+	}
+	checks := doctorChecksByName(got.Checks)
+	if checks["credentials"].Status != "ok" || checks["credentials"].Source != "env" {
+		t.Fatalf("credentials check = %+v", checks["credentials"])
+	}
+	if checks["token"].Status != "fail" || checks["token"].Source != "env" || checks["token"].Message != "IP address not allowed" {
+		t.Fatalf("token check = %+v", checks["token"])
+	}
+	if !strings.Contains(checks["token"].Hint, "tosscli doctor --show-ip") {
+		t.Fatalf("token hint = %q", checks["token"].Hint)
+	}
+	if checks["account-list"].Status != "skipped" || checks["account-list"].Message == "" {
+		t.Fatalf("account-list check = %+v", checks["account-list"])
+	}
+}
+
+func TestIPAllowlistAPIErrorIncludesHint(t *testing.T) {
+	stdout, stderr, exitCode := ExecuteForTestWithDeps(Dependencies{
+		SecretStore: auth.NewMemorySecretStore(),
+		EnvLookup: func(key string) (string, bool) {
+			values := map[string]string{
+				"TOSS_INVEST_CLIENT_ID":     "client-id",
+				"TOSS_INVEST_CLIENT_SECRET": "client-secret",
+			}
+			value, ok := values[key]
+			return value, ok
+		},
+		TokenIssuer: &fakeTokenIssuer{err: &invest.APIError{
+			Code:    "access_denied",
+			Message: "IP address not allowed",
+		}},
+	}, "invest", "auth", "token")
+
+	if exitCode != apperr.ExitAPI {
+		t.Fatalf("exitCode = %d, want %d; stdout=%s stderr=%s", exitCode, apperr.ExitAPI, stdout, stderr)
+	}
+	if stderr != "" {
+		t.Fatalf("stderr = %q, want empty", stderr)
+	}
+
+	var got struct {
+		Error struct {
+			Code    string `json:"code"`
+			Message string `json:"message"`
+			Hint    string `json:"hint"`
+		} `json:"error"`
+	}
+	if err := json.Unmarshal([]byte(stdout), &got); err != nil {
+		t.Fatalf("stdout is not valid JSON: %v\n%s", err, stdout)
+	}
+	if got.Error.Code != "access_denied" || got.Error.Message != "IP address not allowed" {
+		t.Fatalf("error = %+v", got.Error)
+	}
+	if !strings.Contains(got.Error.Hint, "tosscli doctor --show-ip") {
+		t.Fatalf("hint = %q", got.Error.Hint)
 	}
 }
 
@@ -1601,6 +1725,15 @@ func (f *fakeTokenIssuer) IssueOAuth2Token(ctx context.Context, input invest.OAu
 	return f.response, f.err
 }
 
+type fakePublicIPResolver struct {
+	publicIP string
+	err      error
+}
+
+func (f fakePublicIPResolver) PublicIP(ctx context.Context) (string, error) {
+	return f.publicIP, f.err
+}
+
 type fakeAccountAPI struct {
 	accessToken string
 	response    invest.AccountsResponse
@@ -1809,8 +1942,10 @@ type testDoctorCheck struct {
 	Name         string `json:"name"`
 	Status       string `json:"status"`
 	Message      string `json:"message"`
+	Hint         string `json:"hint"`
 	Source       string `json:"source"`
 	AccountCount *int   `json:"accountCount"`
+	PublicIP     string `json:"publicIp"`
 }
 
 func doctorChecksByName(checks []testDoctorCheck) map[string]testDoctorCheck {

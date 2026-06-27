@@ -76,9 +76,16 @@ var helpCatalog = map[string]commandHelp{
 		Description: "Checks CLI version, credential availability, token availability, and read-only account list access.",
 		Rules: []string{
 			"Does not test order execution.",
+			"Does not query third-party public IP services unless --show-ip is provided.",
 			"Does not print credential values, access tokens, account numbers, or account sequence values.",
 		},
-		Examples: []string{"tosscli doctor"},
+		Examples: []string{
+			"tosscli doctor",
+			"tosscli doctor --show-ip",
+		},
+		Flags: map[string]string{
+			"show-ip": "Query and show the public IP address visible to external services. Useful when Toss Open API returns IP address not allowed.",
+		},
 	},
 	"cli:auth-login": {
 		Short:       "Configure Toss Invest credentials.",

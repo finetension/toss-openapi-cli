@@ -22,6 +22,7 @@ const (
 type AppError struct {
 	Code     string
 	Message  string
+	Hint     string
 	ExitCode int
 	Cause    error
 }

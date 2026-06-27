@@ -16,6 +16,7 @@ type ErrorObject struct {
 	Code    string `json:"code"`
 	Message string `json:"message"`
 	Reason  string `json:"reason,omitempty"`
+	Hint    string `json:"hint,omitempty"`
 }
 
 func WriteJSON(w io.Writer, v any) error {
@@ -36,6 +37,7 @@ func WriteError(w io.Writer, err error) int {
 			Code:    app.Code,
 			Message: app.Message,
 			Reason:  reason,
+			Hint:    app.Hint,
 		},
 	}
 	if writeErr := WriteJSON(w, body); writeErr != nil {

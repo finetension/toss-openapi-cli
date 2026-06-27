@@ -158,6 +158,25 @@ For non-interactive environments, an access token can be supplied directly:
 export TOSS_INVEST_ACCESS_TOKEN="..."
 ```
 
+If login or API calls fail with `access_denied` and `IP address not allowed`,
+check the allowed IP settings for your Toss Open API credentials. The CLI cannot
+override server-side IP restrictions.
+
+To check the public IP address visible to external services:
+
+```sh
+tosscli doctor --show-ip
+```
+
+To add an allowed IP:
+
+1. Open <https://www.tossinvest.com>.
+2. Log in.
+3. Click the settings button in the bottom-right corner.
+4. Open the Open API tab.
+5. Click the Add IP button.
+6. Enter the IP address and click Add.
+
 ## Quick Start
 
 Check local readiness:
