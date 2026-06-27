@@ -1,0 +1,79 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to publish to npm, for example 0.1.2 or v0.1.2."
+        required: true
+      publish_github_release:
+        description: "Also publish GitHub Release artifacts with GoReleaser."
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Release
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 26
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Resolve version
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "push" ]; then
+            tag="${GITHUB_REF_NAME}"
+          else
+            tag="${{ inputs.version }}"
+          fi
+          version="${tag#v}"
+          printf 'tag=v%s\n' "$version" >> "$GITHUB_OUTPUT"
+          printf 'version=%s\n' "$version" >> "$GITHUB_OUTPUT"
+
+      - name: Test
+        run: go test ./...
+
+      - name: GoReleaser release
+        if: github.event_name == 'push' || inputs.publish_github_release
+        uses: goreleaser/goreleaser-action@v7
+        with:
+          distribution: goreleaser
+          version: latest
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish npm packages
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: scripts/publish-npm-packages.sh "${{ steps.version.outputs.version }}"
+
+      - name: Verify npm metadata
+        run: |
+          npm view toss-openapi-cli@${{ steps.version.outputs.version }} version
+          npm view @finetension/tosscli-linux-x64@${{ steps.version.outputs.version }} version
