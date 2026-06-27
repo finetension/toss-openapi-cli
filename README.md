@@ -10,11 +10,14 @@ Install the CLI:
 npm install -g toss-openapi-cli
 ```
 
-Install the companion agent skill:
+Install the companion agent skill globally:
 
 ```sh
-npx skills add finetension/tosscli-skills
+npx skills add finetension/tosscli-skills -g -a universal
 ```
+
+Restart your agent session after installing the skill so the new skill is
+loaded.
 
 Then verify the installed CLI:
 

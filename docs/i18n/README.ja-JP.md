@@ -10,11 +10,13 @@ CLI をインストールします。
 npm install -g toss-openapi-cli
 ```
 
-併用する Agent skill をインストールします。
+併用する Agent skill をグローバルにインストールします。
 
 ```sh
-npx skills add finetension/tosscli-skills
+npx skills add finetension/tosscli-skills -g -a universal
 ```
+
+新しい skill を読み込むため、インストール後に Agent session を再起動してください。
 
 インストール後に CLI を確認します。
 

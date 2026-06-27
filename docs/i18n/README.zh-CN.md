@@ -10,11 +10,13 @@
 npm install -g toss-openapi-cli
 ```
 
-安装配套的 Agent skill：
+全局安装配套的 Agent skill：
 
 ```sh
-npx skills add finetension/tosscli-skills
+npx skills add finetension/tosscli-skills -g -a universal
 ```
+
+安装 skill 后请重启 Agent 会话，以便加载新的 skill。
 
 安装后验证 CLI：
 
