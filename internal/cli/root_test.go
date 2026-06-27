@@ -1450,6 +1450,42 @@ func TestInvestOrderCreateRequiresQuantityOrAmount(t *testing.T) {
 	}
 }
 
+func TestInvestOrderCreateRejectsPriceForMarket(t *testing.T) {
+	orderAPI := &fakeOrderAPI{}
+	stdout, stderr, exitCode := ExecuteForTestWithDeps(Dependencies{
+		SecretStore: auth.NewMemorySecretStore(),
+		EnvLookup: func(key string) (string, bool) {
+			if key == "TOSS_INVEST_ACCESS_TOKEN" {
+				return "env-token", true
+			}
+			return "", false
+		},
+		OrderAPI: orderAPI,
+	}, "invest", "order", "create", "--account-seq", "1", "--symbol", "AAPL", "--side", "BUY", "--order-type", "MARKET", "--quantity", "1", "--price", "100")
+
+	if exitCode != apperr.ExitUsage {
+		t.Fatalf("exitCode = %d, want %d; stdout=%s stderr=%s", exitCode, apperr.ExitUsage, stdout, stderr)
+	}
+	if stderr != "" {
+		t.Fatalf("stderr = %q, want empty", stderr)
+	}
+	if orderAPI.accessToken != "" {
+		t.Fatalf("order API should not be called; accessToken = %q", orderAPI.accessToken)
+	}
+	var got struct {
+		Error struct {
+			Code    string `json:"code"`
+			Message string `json:"message"`
+		} `json:"error"`
+	}
+	if err := json.Unmarshal([]byte(stdout), &got); err != nil {
+		t.Fatalf("stdout is not valid JSON: %v\n%s", err, stdout)
+	}
+	if got.Error.Code != apperr.CodeUsage || got.Error.Message != "--price is not allowed for MARKET orders" {
+		t.Fatalf("error = %+v", got.Error)
+	}
+}
+
 func TestInvestOrderModifyModifiesOrder(t *testing.T) {
 	orderAPI := &fakeOrderAPI{
 		modifyResponse: invest.OrderMutationResponse{
@@ -1517,6 +1553,42 @@ func TestInvestOrderModifyDryRunDoesNotRequireAuth(t *testing.T) {
 	}
 	if got.Body.OrderType != "LIMIT" || got.Body.Price != "185.5" {
 		t.Fatalf("body = %+v", got.Body)
+	}
+}
+
+func TestInvestOrderModifyRejectsPriceForMarket(t *testing.T) {
+	orderAPI := &fakeOrderAPI{}
+	stdout, stderr, exitCode := ExecuteForTestWithDeps(Dependencies{
+		SecretStore: auth.NewMemorySecretStore(),
+		EnvLookup: func(key string) (string, bool) {
+			if key == "TOSS_INVEST_ACCESS_TOKEN" {
+				return "env-token", true
+			}
+			return "", false
+		},
+		OrderAPI: orderAPI,
+	}, "invest", "order", "modify", "order-1", "--account-seq", "1", "--order-type", "MARKET", "--quantity", "1", "--price", "100")
+
+	if exitCode != apperr.ExitUsage {
+		t.Fatalf("exitCode = %d, want %d; stdout=%s stderr=%s", exitCode, apperr.ExitUsage, stdout, stderr)
+	}
+	if stderr != "" {
+		t.Fatalf("stderr = %q, want empty", stderr)
+	}
+	if orderAPI.accessToken != "" {
+		t.Fatalf("order API should not be called; accessToken = %q", orderAPI.accessToken)
+	}
+	var got struct {
+		Error struct {
+			Code    string `json:"code"`
+			Message string `json:"message"`
+		} `json:"error"`
+	}
+	if err := json.Unmarshal([]byte(stdout), &got); err != nil {
+		t.Fatalf("stdout is not valid JSON: %v\n%s", err, stdout)
+	}
+	if got.Error.Code != apperr.CodeUsage || got.Error.Message != "--price is not allowed for MARKET orders" {
+		t.Fatalf("error = %+v", got.Error)
 	}
 }
 

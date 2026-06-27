@@ -1241,6 +1241,9 @@ func newInvestOrderCreateCommand(deps Dependencies) *cobra.Command {
 			if strings.EqualFold(strings.TrimSpace(orderType), "LIMIT") && strings.TrimSpace(price) == "" {
 				return apperr.Usage("--price is required for LIMIT orders")
 			}
+			if strings.EqualFold(strings.TrimSpace(orderType), "MARKET") && strings.TrimSpace(price) != "" {
+				return apperr.Usage("--price is not allowed for MARKET orders")
+			}
 			return nil
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -1311,6 +1314,9 @@ func newInvestOrderModifyCommand(deps Dependencies) *cobra.Command {
 			}
 			if strings.EqualFold(strings.TrimSpace(orderType), "LIMIT") && strings.TrimSpace(price) == "" {
 				return apperr.Usage("--price is required for LIMIT orders")
+			}
+			if strings.EqualFold(strings.TrimSpace(orderType), "MARKET") && strings.TrimSpace(price) != "" {
+				return apperr.Usage("--price is not allowed for MARKET orders")
 			}
 			return nil
 		},
