@@ -61,6 +61,7 @@ write_platform_package "tosscli-win32-x64" "windows" "amd64" "win32" "x64"
 root_dir="$ROOT_DIR/$OUT_DIR/toss-openapi-cli"
 mkdir -p "$root_dir/bin"
 cp "$ROOT_DIR/npm/toss-openapi-cli/tosscli.js" "$root_dir/bin/tosscli.js"
+cp "$ROOT_DIR/README.md" "$root_dir/README.md"
 chmod +x "$root_dir/bin/tosscli.js"
 
 dep_value() {
@@ -81,7 +82,7 @@ cat > "$root_dir/package.json" <<EOF
   "bin": {
     "tosscli": "bin/tosscli.js"
   },
-  "files": ["bin"],
+  "files": ["bin", "README.md"],
   "optionalDependencies": {
     "@finetension/tosscli-darwin-arm64": $(dep_value "tosscli-darwin-arm64"),
     "@finetension/tosscli-darwin-x64": $(dep_value "tosscli-darwin-x64"),
