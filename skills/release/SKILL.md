@@ -44,6 +44,8 @@ matching `CHANGELOG.md` section, runs tests, verifies npm package contents, and
 creates an annotated local tag.
 
 Push the printed tag command to start the GitHub Actions release workflow.
+The workflow uses the matching `CHANGELOG.md` section as the GitHub Release
+notes.
 
 ## Manual Check
 
@@ -51,4 +53,10 @@ To validate a specific version without tagging:
 
 ```sh
 scripts/pre-release-check.sh 0.1.7
+```
+
+To print the release notes for a version:
+
+```sh
+scripts/release-notes.sh 0.1.7
 ```

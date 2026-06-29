@@ -50,6 +50,14 @@ if ! grep -Eq "^## \\[$VERSION\\] - [0-9]{4}-[0-9]{2}-[0-9]{2}$" CHANGELOG.md; t
   exit 1
 fi
 
+notes_file="$(mktemp)"
+if ! scripts/release-notes.sh "$VERSION" > "$notes_file" || ! grep -Eq '[^[:space:]]' "$notes_file"; then
+  echo "CHANGELOG.md release notes for $TAG are empty or missing." >&2
+  rm -f "$notes_file"
+  exit 1
+fi
+rm -f "$notes_file"
+
 echo "Running Go tests..."
 go test ./...
 
