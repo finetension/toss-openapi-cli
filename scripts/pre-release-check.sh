@@ -39,25 +39,6 @@ if [ "${ALLOW_EXISTING_TAG:-0}" != "1" ] && git rev-parse -q --verify "refs/tags
   exit 1
 fi
 
-if [ ! -f CHANGELOG.md ]; then
-  echo "CHANGELOG.md is required before release." >&2
-  exit 1
-fi
-
-if ! grep -Eq "^## \\[$VERSION\\] - [0-9]{4}-[0-9]{2}-[0-9]{2}$" CHANGELOG.md; then
-  echo "CHANGELOG.md must contain a release section like:" >&2
-  echo "## [$VERSION] - YYYY-MM-DD" >&2
-  exit 1
-fi
-
-notes_file="$(mktemp)"
-if ! scripts/release-notes.sh "$VERSION" > "$notes_file" || ! grep -Eq '[^[:space:]]' "$notes_file"; then
-  echo "CHANGELOG.md release notes for $TAG are empty or missing." >&2
-  rm -f "$notes_file"
-  exit 1
-fi
-rm -f "$notes_file"
-
 echo "Running Go tests..."
 go test ./...
 

@@ -70,14 +70,6 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Update GitHub Release notes
-        if: github.event_name == 'push' || inputs.publish_github_release
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          scripts/release-notes.sh "${{ steps.version.outputs.version }}" > release-notes.md
-          gh release edit "${{ steps.version.outputs.tag }}" --notes-file release-notes.md
-
       - name: Publish npm packages
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
