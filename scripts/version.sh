@@ -33,9 +33,12 @@ if [ -n "$(git status --porcelain)" ]; then
   exit 1
 fi
 
-git fetch origin main --tags >/dev/null
+git fetch origin main >/dev/null
 
-latest_tag="$(git tag --list 'v[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname | sed -n '1p')"
+latest_tag="$(git ls-remote --tags --refs origin 'v[0-9]*.[0-9]*.[0-9]*' \
+  | sed 's|.*refs/tags/||' \
+  | sort -V \
+  | tail -n 1)"
 
 if [ -n "$bump" ]; then
   if [ -z "$latest_tag" ]; then
