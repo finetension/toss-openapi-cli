@@ -55,8 +55,10 @@ jobs:
           printf 'tag=v%s\n' "$version" >> "$GITHUB_OUTPUT"
           printf 'version=%s\n' "$version" >> "$GITHUB_OUTPUT"
 
-      - name: Test
-        run: go test ./...
+      - name: Pre-release check
+        env:
+          ALLOW_EXISTING_TAG: "1"
+        run: scripts/pre-release-check.sh "${{ steps.version.outputs.version }}"
 
       - name: GoReleaser release
         if: github.event_name == 'push' || inputs.publish_github_release

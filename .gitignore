@@ -12,6 +12,9 @@ AGENTS.md
 # Logs
 *.log
 
+# Node package manager artifacts
+node_modules/
+
 # Temporary files
 *.tmp
 tmp/
