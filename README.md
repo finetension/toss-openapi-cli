@@ -391,6 +391,24 @@ Public releases are published through GitHub Releases and GoReleaser:
 - `install.sh` for macOS/Linux.
 - Windows zip first, with `install.ps1` after manual Windows validation.
 
+Create the next version tag:
+
+```sh
+scripts/version.sh patch
+scripts/version.sh minor
+scripts/version.sh major
+```
+
+The script runs the local pre-release checks, validates GoReleaser
+configuration, and creates the local tag. A specific version can also be passed,
+for example `scripts/version.sh 0.1.10`.
+
+Push the created tag to start the release workflow:
+
+```sh
+git push origin v0.1.10
+```
+
 Homebrew, Scoop, Winget, npm wrappers, signing, and notarization are intentionally
 deferred until the GitHub Releases path is stable.
 
