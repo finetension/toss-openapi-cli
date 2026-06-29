@@ -60,6 +60,7 @@ func NewRootCommand(streams IOStreams, deps Dependencies) *cobra.Command {
 	cmd.AddCommand(newVersionCommand())
 	cmd.AddCommand(newDoctorCommand(deps))
 	cmd.AddCommand(newInvestCommand(deps))
+	cmd.SetHelpCommand(newHelpCommand(cmd))
 	return cmd
 }
 

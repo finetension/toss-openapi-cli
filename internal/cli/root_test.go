@@ -484,6 +484,111 @@ func TestCandlesHelpIncludesOASBackedFlagMetadata(t *testing.T) {
 	}
 }
 
+func TestHelpAllOutputsVisibleCommandHelp(t *testing.T) {
+	stdout, stderr, exitCode := ExecuteForTest("help", "--all")
+	if exitCode != apperr.ExitSuccess {
+		t.Fatalf("exitCode = %d, want %d; stdout=%s stderr=%s", exitCode, apperr.ExitSuccess, stdout, stderr)
+	}
+	if stderr != "" {
+		t.Fatalf("stderr = %q, want empty", stderr)
+	}
+	for _, want := range []string{
+		"# tosscli",
+		"# tosscli invest order create",
+		"OpenAPI operation: createOrder.",
+		"--dry-run prints the request preview as JSON and does not call the Toss API.",
+		"-h, --help",
+	} {
+		if !strings.Contains(stdout, want) {
+			t.Fatalf("help --all missing %q\n%s", want, stdout)
+		}
+	}
+	if strings.Contains(stdout, "OASDetails") || strings.Contains(stdout, "CLIDetails") {
+		t.Fatalf("help --all leaked internal metadata:\n%s", stdout)
+	}
+}
+
+func TestHelpAllJSONOutputsCommandRegistry(t *testing.T) {
+	stdout, stderr, exitCode := ExecuteForTest("help", "--all", "--json")
+	if exitCode != apperr.ExitSuccess {
+		t.Fatalf("exitCode = %d, want %d; stdout=%s stderr=%s", exitCode, apperr.ExitSuccess, stdout, stderr)
+	}
+	if stderr != "" {
+		t.Fatalf("stderr = %q, want empty", stderr)
+	}
+
+	var got struct {
+		Commands []struct {
+			Path        string   `json:"path"`
+			OperationID string   `json:"operationId"`
+			RateLimit   string   `json:"rateLimit"`
+			OASDetails  []string `json:"oasDetails"`
+			CLIDetails  []string `json:"cliDetails"`
+			Flags       []struct {
+				Name   string `json:"name"`
+				Source string `json:"source"`
+			} `json:"flags"`
+		} `json:"commands"`
+	}
+	if err := json.Unmarshal([]byte(stdout), &got); err != nil {
+		t.Fatalf("stdout is not valid JSON: %v\n%s", err, stdout)
+	}
+
+	var create *struct {
+		Path        string   `json:"path"`
+		OperationID string   `json:"operationId"`
+		RateLimit   string   `json:"rateLimit"`
+		OASDetails  []string `json:"oasDetails"`
+		CLIDetails  []string `json:"cliDetails"`
+		Flags       []struct {
+			Name   string `json:"name"`
+			Source string `json:"source"`
+		} `json:"flags"`
+	}
+	for i := range got.Commands {
+		if got.Commands[i].Path == "tosscli invest order create" {
+			create = &got.Commands[i]
+			break
+		}
+	}
+	if create == nil {
+		t.Fatalf("registry missing order create command: %+v", got.Commands)
+	}
+	if create.OperationID != "createOrder" || create.RateLimit != "ORDER" {
+		t.Fatalf("order create metadata = %+v", create)
+	}
+	if !stringSliceContains(create.OASDetails, "Provide exactly one of --quantity or --order-amount.") {
+		t.Fatalf("order create missing OAS details: %+v", create.OASDetails)
+	}
+	if !stringSliceContains(create.CLIDetails, "--dry-run prints the request preview as JSON and does not call the Toss API.") {
+		t.Fatalf("order create missing CLI details: %+v", create.CLIDetails)
+	}
+	flagSources := map[string]string{}
+	for _, flag := range create.Flags {
+		flagSources[flag.Name] = flag.Source
+	}
+	if flagSources["account-seq"] != "oas" || flagSources["dry-run"] != "cli" {
+		t.Fatalf("flag sources = %+v", flagSources)
+	}
+}
+
+func TestHelpAllRejectsCommandPathAndJSONWithoutAll(t *testing.T) {
+	for _, args := range [][]string{
+		{"help", "--json"},
+		{"help", "--all", "invest", "order", "create"},
+	} {
+		t.Run(strings.Join(args, " "), func(t *testing.T) {
+			stdout, stderr, exitCode := ExecuteForTest(args...)
+			if exitCode != apperr.ExitUsage {
+				t.Fatalf("exitCode = %d, want %d; stdout=%s stderr=%s", exitCode, apperr.ExitUsage, stdout, stderr)
+			}
+			if stderr != "" {
+				t.Fatalf("stderr = %q, want empty", stderr)
+			}
+		})
+	}
+}
+
 func TestInvestAuthStatusOutputsJSON(t *testing.T) {
 	stdout, stderr, exitCode := ExecuteForTestWithDeps(Dependencies{
 		SecretStore: auth.NewMemorySecretStore(),
@@ -2292,6 +2397,15 @@ func compactJSON(t *testing.T, raw json.RawMessage) string {
 		t.Fatalf("json.Compact err = %v", err)
 	}
 	return out.String()
+}
+
+func stringSliceContains(values []string, want string) bool {
+	for _, value := range values {
+		if value == want {
+			return true
+		}
+	}
+	return false
 }
 
 func testEnvAccessToken(key string) (string, bool) {

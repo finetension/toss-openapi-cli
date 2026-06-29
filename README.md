@@ -349,6 +349,13 @@ Use `--help` on any command to see required flags:
 tosscli invest order create --help
 ```
 
+Inspect the full command help surface:
+
+```sh
+tosscli help --all
+tosscli help --all --json
+```
+
 ## Development
 
 Run the test suite:

@@ -7,6 +7,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
+const helpCatalogKeyAnnotation = "tosscli/help-catalog-key"
+
 type commandHelp struct {
 	Short       string
 	Description string
@@ -26,6 +28,10 @@ func applyHelp(cmd *cobra.Command, key string) {
 	if !ok {
 		return
 	}
+	if cmd.Annotations == nil {
+		cmd.Annotations = map[string]string{}
+	}
+	cmd.Annotations[helpCatalogKeyAnnotation] = key
 	if help.Short != "" {
 		cmd.Short = help.Short
 	}
