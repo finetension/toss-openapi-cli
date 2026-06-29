@@ -34,9 +34,9 @@ Keep `## [Unreleased]` at the top for future notes.
 Run one of these from a clean `main` branch:
 
 ```sh
-pnpm release:patch
-pnpm release:minor
-pnpm release:major
+scripts/release-tag.sh patch
+scripts/release-tag.sh minor
+scripts/release-tag.sh major
 ```
 
 The command calculates the next version from the latest `v*` tag, validates the
@@ -50,5 +50,5 @@ Push the printed tag command to start the GitHub Actions release workflow.
 To validate a specific version without tagging:
 
 ```sh
-pnpm release:check 0.1.7
+scripts/pre-release-check.sh 0.1.7
 ```
