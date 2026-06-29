@@ -141,13 +141,17 @@ var helpCatalog = map[string]commandHelp{
 		Description: "Reads holdings for a Toss Invest account. Supports Korean and US stocks; overseas options and bonds are excluded.",
 		OperationID: "getHoldings",
 		RateLimit:   "ASSET",
+		OASDetails: []string{
+			"When there are no holdings, summary amounts are 0 and items is an empty array.",
+			"When --symbol is provided, holdings and summary fields are filtered and recalculated for that symbol.",
+		},
 		Examples: []string{
 			"tosscli invest asset holdings --account-seq 123456789",
 			"tosscli invest asset holdings --account-seq 123456789 --symbol AAPL",
 		},
 		OASFlags: map[string]string{
 			"account-seq": "Account sequence. Required. Source: tosscli invest account list.",
-			"symbol":      "Stock symbol filter. Optional. Examples: 005930, AAPL. Pattern: letters, digits, '.', '-'.",
+			"symbol":      "Stock symbol filter. Optional. Examples: 005930, AAPL. Pattern: letters, digits, '.', '-'. Filters holdings to that symbol and recalculates summary fields.",
 		},
 	},
 	"getPrices": {
@@ -219,7 +223,12 @@ var helpCatalog = map[string]commandHelp{
 		Description: "Reads basic stock reference information for up to 200 comma-separated symbols.",
 		OperationID: "getStocks",
 		RateLimit:   "STOCK",
-		Examples:    []string{"tosscli invest stock-info stocks --symbols AAPL,MSFT"},
+		OASDetails: []string{
+			"Returns reference data including stock name, market, currency, listing status, trading suspension status, and shares outstanding.",
+			"Stock market values include KOSPI, KOSDAQ, NYSE, NASDAQ, AMEX, KR_ETC, and US_ETC.",
+			"Stock listing status values include SCHEDULED, ACTIVE, and DELISTED.",
+		},
+		Examples: []string{"tosscli invest stock-info stocks --symbols AAPL,MSFT"},
 		OASFlags: map[string]string{
 			"symbols": "Stock symbols. Required. Comma-separated, up to 200. Examples: 005930,AAPL. Pattern: letters, digits, '.', ',', '-'.",
 		},
@@ -263,9 +272,11 @@ var helpCatalog = map[string]commandHelp{
 		OperationID: "getOrders",
 		RateLimit:   "ORDER_HISTORY",
 		OASDetails: []string{
-			"status=OPEN returns all open orders; limit and cursor are ignored.",
+			"status=OPEN groups PENDING, PARTIAL_FILLED, PENDING_CANCEL, and PENDING_REPLACE orders.",
+			"status=CLOSED groups FILLED, CANCELED, REJECTED, REPLACED, CANCEL_REJECTED, REPLACE_REJECTED, and PARTIAL_FILLED orders.",
+			"status=OPEN returns all open orders; limit and cursor are ignored, while from and to still filter by orderedAt in KST.",
 			"status=CLOSED uses limit, cursor, from, and to for pagination and date filtering.",
-			"from and to are inclusive dates based on orderedAt in KST.",
+			"from and to are inclusive dates based on orderedAt in KST. When omitted, the full period is used.",
 		},
 		Examples: []string{
 			"tosscli invest order-history list --account-seq 123456789 --status OPEN",
@@ -362,7 +373,12 @@ var helpCatalog = map[string]commandHelp{
 		Description: "Reads cash-based buying power for an account and currency.",
 		OperationID: "getBuyingPower",
 		RateLimit:   "ORDER_INFO",
-		Examples:    []string{"tosscli invest order-info buying-power --account-seq 123456789 --currency USD"},
+		OASDetails: []string{
+			"Returns the buying power available for buy orders.",
+			"cashBuyingPower is cash-based buying power excluding margin trading.",
+			"KRW values are integer won amounts; USD values may include decimals.",
+		},
+		Examples: []string{"tosscli invest order-info buying-power --account-seq 123456789 --currency USD"},
 		OASFlags: map[string]string{
 			"account-seq": "Account sequence. Required. Source: tosscli invest account list.",
 			"currency":    "Currency code. Required. Allowed: KRW, USD.",
@@ -373,7 +389,11 @@ var helpCatalog = map[string]commandHelp{
 		Description: "Reads sellable quantity for a symbol in an account.",
 		OperationID: "getSellableQuantity",
 		RateLimit:   "ORDER_INFO",
-		Examples:    []string{"tosscli invest order-info sellable-quantity --account-seq 123456789 --symbol AAPL"},
+		OASDetails: []string{
+			"sellableQuantity is returned in shares.",
+			"KR quantities are integers; US quantities may include decimals.",
+		},
+		Examples: []string{"tosscli invest order-info sellable-quantity --account-seq 123456789 --symbol AAPL"},
 		OASFlags: map[string]string{
 			"account-seq": "Account sequence. Required. Source: tosscli invest account list.",
 			"symbol":      "Stock symbol. Required. Examples: 005930, AAPL. Pattern: letters, digits, '.', '-'.",
@@ -384,7 +404,12 @@ var helpCatalog = map[string]commandHelp{
 		Description: "Reads market-specific commission rates for an account.",
 		OperationID: "getCommissions",
 		RateLimit:   "ORDER_INFO",
-		Examples:    []string{"tosscli invest order-info commissions --account-seq 123456789"},
+		OASDetails: []string{
+			"Returns domestic and US stock commission information as an array.",
+			"commissionRate is a percentage value; for example, 0.015 means 0.015%.",
+			"startDate is null for US stocks; endDate is null when the commission applies indefinitely.",
+		},
+		Examples: []string{"tosscli invest order-info commissions --account-seq 123456789"},
 		OASFlags: map[string]string{
 			"account-seq": "Account sequence. Required. Source: tosscli invest account list.",
 		},
