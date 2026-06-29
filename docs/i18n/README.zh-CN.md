@@ -2,6 +2,25 @@
 
 [English](../../README.md) | [한국어](README.ko-KR.md) | 简体中文 | [日本語](README.ja-JP.md)
 
+## 面向 Agent
+
+如果用户给你这个仓库链接，请先询问是否要安装 CLI 和配套的 agent skill。
+
+只有在用户同意后才安装 CLI：
+
+```sh
+npm install -g toss-openapi-cli
+```
+
+只有在用户同意后才安装配套 skill：
+
+```sh
+npx skills add finetension/tosscli-skills -g -a universal
+```
+
+安装 skill 后，请重启 agent 会话以加载该 skill。安装 CLI 后，请用
+`tosscli version` 验证。
+
 ## 安装
 
 安装 CLI：

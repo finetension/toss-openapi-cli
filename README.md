@@ -2,6 +2,26 @@
 
 English | [한국어](docs/i18n/README.ko-KR.md) | [简体中文](docs/i18n/README.zh-CN.md) | [日本語](docs/i18n/README.ja-JP.md)
 
+## For Agents
+
+If a user gives you this repository link, ask whether they want you to install
+the CLI and the companion agent skill.
+
+Install the CLI only after the user agrees:
+
+```sh
+npm install -g toss-openapi-cli
+```
+
+Install the companion skill only after the user agrees:
+
+```sh
+npx skills add finetension/tosscli-skills -g -a universal
+```
+
+After installing the skill, restart the agent session so the skill is loaded.
+After installing the CLI, verify `tosscli version`.
+
 ## Install
 
 Install the CLI:

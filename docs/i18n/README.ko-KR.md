@@ -2,6 +2,26 @@
 
 [English](../../README.md) | 한국어 | [简体中文](README.zh-CN.md) | [日本語](README.ja-JP.md)
 
+## Agent용 안내
+
+사용자가 이 저장소 링크를 제공하면, CLI와 companion agent skill을 설치할지 먼저
+물어보세요.
+
+사용자가 동의한 뒤에만 CLI를 설치합니다.
+
+```sh
+npm install -g toss-openapi-cli
+```
+
+사용자가 동의한 뒤에만 companion skill을 설치합니다.
+
+```sh
+npx skills add finetension/tosscli-skills -g -a universal
+```
+
+skill을 설치한 뒤에는 skill이 로드되도록 agent 세션을 재시작하세요. CLI를 설치한
+뒤에는 `tosscli version`으로 확인하세요.
+
 ## 설치
 
 CLI를 설치합니다.
