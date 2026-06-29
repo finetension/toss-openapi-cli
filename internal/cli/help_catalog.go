@@ -12,9 +12,13 @@ type commandHelp struct {
 	Description string
 	OperationID string
 	RateLimit   string
-	Rules       []string
-	Examples    []string
-	Flags       map[string]string
+	// OASDetails and OASFlags are traceable to specs/invest/openapi.json.
+	OASDetails []string
+	OASFlags   map[string]string
+	// CLIDetails and CLIFlags describe tosscli behavior not present in the OAS.
+	CLIDetails []string
+	CLIFlags   map[string]string
+	Examples   []string
 }
 
 func applyHelp(cmd *cobra.Command, key string) {
@@ -27,7 +31,12 @@ func applyHelp(cmd *cobra.Command, key string) {
 	}
 	cmd.Long = renderLongHelp(help)
 	cmd.Example = renderExamples(help.Examples)
-	for name, usage := range help.Flags {
+	applyFlagHelp(cmd, help.OASFlags)
+	applyFlagHelp(cmd, help.CLIFlags)
+}
+
+func applyFlagHelp(cmd *cobra.Command, flags map[string]string) {
+	for name, usage := range flags {
 		if flag := cmd.Flags().Lookup(name); flag != nil {
 			flag.Usage = usage
 		}
@@ -60,10 +69,12 @@ func renderLongHelp(help commandHelp) string {
 		}
 		parts = append(parts, strings.Join(lines, "\n"))
 	}
-	if len(help.Rules) > 0 {
+	details := append([]string{}, help.CLIDetails...)
+	details = append(details, help.OASDetails...)
+	if len(details) > 0 {
 		lines := []string{"Details:"}
-		for _, rule := range help.Rules {
-			lines = append(lines, "  - "+rule)
+		for _, detail := range details {
+			lines = append(lines, "  - "+detail)
 		}
 		parts = append(parts, strings.Join(lines, "\n"))
 	}
@@ -74,7 +85,7 @@ var helpCatalog = map[string]commandHelp{
 	"cli:doctor": {
 		Short:       "Check local Toss Invest CLI readiness.",
 		Description: "Checks CLI version, credential availability, token availability, and read-only account list access.",
-		Rules: []string{
+		CLIDetails: []string{
 			"Does not test order execution.",
 			"Does not query third-party public IP services unless --show-ip is provided.",
 			"Does not print credential values, access tokens, account numbers, or account sequence values.",
@@ -83,14 +94,14 @@ var helpCatalog = map[string]commandHelp{
 			"tosscli doctor",
 			"tosscli doctor --show-ip",
 		},
-		Flags: map[string]string{
+		CLIFlags: map[string]string{
 			"show-ip": "Query and show the public IP address visible to external services. Useful when Toss Open API returns IP address not allowed.",
 		},
 	},
 	"cli:auth-login": {
 		Short:       "Configure Toss Invest credentials.",
 		Description: "Stores Toss Invest OAuth2 client credentials in the OS keyring and verifies them by issuing an access token.",
-		Rules: []string{
+		CLIDetails: []string{
 			"Credentials can be passed with flags or entered interactively.",
 			"Environment variables TOSS_INVEST_CLIENT_ID and TOSS_INVEST_CLIENT_SECRET override stored credentials.",
 		},
@@ -98,7 +109,7 @@ var helpCatalog = map[string]commandHelp{
 			"tosscli invest auth login",
 			"tosscli invest auth login --client-id \"$TOSS_INVEST_CLIENT_ID\" --client-secret \"$TOSS_INVEST_CLIENT_SECRET\"",
 		},
-		Flags: map[string]string{
+		CLIFlags: map[string]string{
 			"client-id":     "Toss Invest OAuth2 client ID. Optional when TOSS_INVEST_CLIENT_ID is set or interactive input is used.",
 			"client-secret": "Toss Invest OAuth2 client secret. Optional when TOSS_INVEST_CLIENT_SECRET is set or interactive input is used.",
 		},
@@ -134,7 +145,7 @@ var helpCatalog = map[string]commandHelp{
 			"tosscli invest asset holdings --account-seq 123456789",
 			"tosscli invest asset holdings --account-seq 123456789 --symbol AAPL",
 		},
-		Flags: map[string]string{
+		OASFlags: map[string]string{
 			"account-seq": "Account sequence. Required. Source: tosscli invest account list.",
 			"symbol":      "Stock symbol filter. Optional. Examples: 005930, AAPL. Pattern: letters, digits, '.', '-'.",
 		},
@@ -148,7 +159,7 @@ var helpCatalog = map[string]commandHelp{
 			"tosscli invest market-data prices --symbols AAPL",
 			"tosscli invest market-data prices --symbols 005930,000660",
 		},
-		Flags: map[string]string{
+		OASFlags: map[string]string{
 			"symbols": "Stock symbols. Required. Comma-separated, up to 200. Examples: 005930,000660 or AAPL,MSFT. Pattern: letters, digits, '.', ',', '-'.",
 		},
 	},
@@ -158,7 +169,7 @@ var helpCatalog = map[string]commandHelp{
 		OperationID: "getOrderbook",
 		RateLimit:   "MARKET_DATA",
 		Examples:    []string{"tosscli invest market-data orderbook --symbol AAPL"},
-		Flags: map[string]string{
+		OASFlags: map[string]string{
 			"symbol": "Stock symbol. Required. Examples: 005930, AAPL. Pattern: letters, digits, '.', '-'.",
 		},
 	},
@@ -168,7 +179,7 @@ var helpCatalog = map[string]commandHelp{
 		OperationID: "getTrades",
 		RateLimit:   "MARKET_DATA",
 		Examples:    []string{"tosscli invest market-data trades --symbol AAPL --count 20"},
-		Flags: map[string]string{
+		OASFlags: map[string]string{
 			"symbol": "Stock symbol. Required. Examples: 005930, AAPL. Pattern: letters, digits, '.', '-'.",
 			"count":  "Trade count. Optional. Range: 1-50. Default: 50.",
 		},
@@ -179,7 +190,7 @@ var helpCatalog = map[string]commandHelp{
 		OperationID: "getPriceLimit",
 		RateLimit:   "MARKET_DATA",
 		Examples:    []string{"tosscli invest market-data price-limits --symbol 005930"},
-		Flags: map[string]string{
+		OASFlags: map[string]string{
 			"symbol": "Stock symbol. Required. Examples: 005930, AAPL. Pattern: letters, digits, '.', '-'.",
 		},
 	},
@@ -188,14 +199,14 @@ var helpCatalog = map[string]commandHelp{
 		Description: "Reads OHLCV candle data for a symbol. Returns up to 200 candles.",
 		OperationID: "getCandles",
 		RateLimit:   "MARKET_DATA_CHART",
-		Rules: []string{
+		OASDetails: []string{
 			"Paginated responses include nextBefore. Pass that value to --before to request the next page.",
 		},
 		Examples: []string{
 			"tosscli invest market-data candles --symbol AAPL --interval 1d",
 			"tosscli invest market-data candles --symbol 005930 --interval 1m --count 100",
 		},
-		Flags: map[string]string{
+		OASFlags: map[string]string{
 			"symbol":   "Stock symbol. Required. Examples: 005930, AAPL. Pattern: letters, digits, '.', '-'.",
 			"interval": "Candle interval. Required. Allowed: 1m, 1d.",
 			"count":    "Candle count. Optional. Range: 1-200. Default: 100.",
@@ -209,7 +220,7 @@ var helpCatalog = map[string]commandHelp{
 		OperationID: "getStocks",
 		RateLimit:   "STOCK",
 		Examples:    []string{"tosscli invest stock-info stocks --symbols AAPL,MSFT"},
-		Flags: map[string]string{
+		OASFlags: map[string]string{
 			"symbols": "Stock symbols. Required. Comma-separated, up to 200. Examples: 005930,AAPL. Pattern: letters, digits, '.', ',', '-'.",
 		},
 	},
@@ -218,7 +229,7 @@ var helpCatalog = map[string]commandHelp{
 		Description: "Reads active buy warnings and volatility interruption information for a symbol.",
 		OperationID: "getStockWarnings",
 		RateLimit:   "STOCK",
-		Rules: []string{
+		OASDetails: []string{
 			"Warning types include LIQUIDATION_TRADING, OVERHEATED, INVESTMENT_WARNING, INVESTMENT_RISK, VI_STATIC, VI_DYNAMIC, VI_STATIC_AND_DYNAMIC, and STOCK_WARRANTS.",
 			"Active warnings are items where startDate <= today <= endDate, or endDate is null.",
 			"Results are sorted by startDate descending; ordering is not guaranteed when startDate values are equal.",
@@ -232,13 +243,13 @@ var helpCatalog = map[string]commandHelp{
 		Description: "Reads KRW/USD exchange-rate information. When date-time is omitted, the current effective rate is returned.",
 		OperationID: "getExchangeRate",
 		RateLimit:   "MARKET_INFO",
-		Rules: []string{
+		OASDetails: []string{
 			"Exchange rates update every 1 minute and are reference display rates.",
 			"The returned rate can differ from the transaction exchange rate applied to an order.",
 			"validFrom and validUntil describe the validity window for the returned rate.",
 		},
 		Examples: []string{"tosscli invest market-info exchange-rate --base-currency KRW --quote-currency USD"},
-		Flags: map[string]string{
+		OASFlags: map[string]string{
 			"base-currency":  "Base currency. Required. Allowed: KRW, USD.",
 			"quote-currency": "Quote currency. Required. Allowed: KRW, USD.",
 			"date-time":      "Exchange-rate timestamp. Optional. Format: ISO 8601 date-time. Defaults to the current effective rate.",
@@ -251,7 +262,7 @@ var helpCatalog = map[string]commandHelp{
 		Description: "Lists orders for an account using an order lifecycle group filter.",
 		OperationID: "getOrders",
 		RateLimit:   "ORDER_HISTORY",
-		Rules: []string{
+		OASDetails: []string{
 			"status=OPEN returns all open orders; limit and cursor are ignored.",
 			"status=CLOSED uses limit, cursor, from, and to for pagination and date filtering.",
 			"from and to are inclusive dates based on orderedAt in KST.",
@@ -260,7 +271,7 @@ var helpCatalog = map[string]commandHelp{
 			"tosscli invest order-history list --account-seq 123456789 --status OPEN",
 			"tosscli invest order-history list --account-seq 123456789 --status CLOSED --limit 20",
 		},
-		Flags: map[string]string{
+		OASFlags: map[string]string{
 			"account-seq": "Account sequence. Required. Source: tosscli invest account list.",
 			"status":      "Order lifecycle group. Required. Allowed: OPEN, CLOSED.",
 			"symbol":      "Stock symbol filter. Optional. Examples: 005930, AAPL. Pattern: letters, digits, '.', '-'.",
@@ -275,9 +286,9 @@ var helpCatalog = map[string]commandHelp{
 		Description: "Reads details for a single order in any lifecycle state.",
 		OperationID: "getOrder",
 		RateLimit:   "ORDER_HISTORY",
-		Rules:       []string{"orderId is a server-issued opaque token."},
+		OASDetails:  []string{"orderId is a server-issued opaque token."},
 		Examples:    []string{"tosscli invest order-history get order-id --account-seq 123456789"},
-		Flags: map[string]string{
+		OASFlags: map[string]string{
 			"account-seq": "Account sequence. Required. Source: tosscli invest account list.",
 		},
 	},
@@ -286,9 +297,12 @@ var helpCatalog = map[string]commandHelp{
 		Description: "Creates a buy or sell order.",
 		OperationID: "createOrder",
 		RateLimit:   "ORDER",
-		Rules: []string{
+		CLIDetails: []string{
 			"--dry-run prints the request preview as JSON and does not call the Toss API.",
 			"Without --dry-run, this command sends a live order request to the Toss API.",
+			"When --client-order-id is omitted, tosscli generates one before sending the request.",
+		},
+		OASDetails: []string{
 			"Provide exactly one of --quantity or --order-amount.",
 			"LIMIT orders require --price.",
 			"MARKET orders must not include --price.",
@@ -298,16 +312,19 @@ var helpCatalog = map[string]commandHelp{
 			"tosscli invest order create --dry-run --account-seq 123456789 --symbol AAPL --side BUY --order-type LIMIT --quantity 1 --price 100",
 			"tosscli invest order create --dry-run --account-seq 123456789 --symbol AAPL --side BUY --order-type MARKET --order-amount 100.5",
 		},
-		Flags: orderFlagHelp(true),
+		OASFlags: orderFlagHelp(true),
+		CLIFlags: dryRunFlagHelp(),
 	},
 	"modifyOrder": {
 		Short:       "Modify an order.",
 		Description: "Modifies price or quantity for an existing order.",
 		OperationID: "modifyOrder",
 		RateLimit:   "ORDER",
-		Rules: []string{
+		CLIDetails: []string{
 			"--dry-run prints the request preview as JSON and does not call the Toss API.",
 			"Without --dry-run, this command sends a live order modification request to the Toss API.",
+		},
+		OASDetails: []string{
 			"orderId is a server-issued opaque token.",
 			"KR stock orders require --quantity and it must be a positive integer.",
 			"US stock orders do not support quantity modification; price changes only.",
@@ -317,22 +334,27 @@ var helpCatalog = map[string]commandHelp{
 		Examples: []string{
 			"tosscli invest order modify order-id --dry-run --account-seq 123456789 --order-type LIMIT --quantity 1 --price 101",
 		},
-		Flags: orderFlagHelp(false),
+		OASFlags: orderFlagHelp(false),
+		CLIFlags: dryRunFlagHelp(),
 	},
 	"cancelOrder": {
 		Short:       "Cancel an order.",
 		Description: "Cancels an existing order. Already-filled orders cannot be canceled.",
 		OperationID: "cancelOrder",
 		RateLimit:   "ORDER",
-		Rules: []string{
+		CLIDetails: []string{
 			"--dry-run prints the request preview as JSON and does not call the Toss API.",
 			"Without --dry-run, this command sends a live order cancellation request to the Toss API.",
+		},
+		OASDetails: []string{
 			"orderId is a server-issued opaque token.",
 		},
 		Examples: []string{"tosscli invest order cancel order-id --dry-run --account-seq 123456789"},
-		Flags: map[string]string{
+		OASFlags: map[string]string{
 			"account-seq": "Account sequence. Required. Source: tosscli invest account list.",
-			"dry-run":     "Print the request preview as JSON without calling the Toss API.",
+		},
+		CLIFlags: map[string]string{
+			"dry-run": "Print the request preview as JSON without calling the Toss API.",
 		},
 	},
 	"getBuyingPower": {
@@ -341,7 +363,7 @@ var helpCatalog = map[string]commandHelp{
 		OperationID: "getBuyingPower",
 		RateLimit:   "ORDER_INFO",
 		Examples:    []string{"tosscli invest order-info buying-power --account-seq 123456789 --currency USD"},
-		Flags: map[string]string{
+		OASFlags: map[string]string{
 			"account-seq": "Account sequence. Required. Source: tosscli invest account list.",
 			"currency":    "Currency code. Required. Allowed: KRW, USD.",
 		},
@@ -352,7 +374,7 @@ var helpCatalog = map[string]commandHelp{
 		OperationID: "getSellableQuantity",
 		RateLimit:   "ORDER_INFO",
 		Examples:    []string{"tosscli invest order-info sellable-quantity --account-seq 123456789 --symbol AAPL"},
-		Flags: map[string]string{
+		OASFlags: map[string]string{
 			"account-seq": "Account sequence. Required. Source: tosscli invest account list.",
 			"symbol":      "Stock symbol. Required. Examples: 005930, AAPL. Pattern: letters, digits, '.', '-'.",
 		},
@@ -363,7 +385,7 @@ var helpCatalog = map[string]commandHelp{
 		OperationID: "getCommissions",
 		RateLimit:   "ORDER_INFO",
 		Examples:    []string{"tosscli invest order-info commissions --account-seq 123456789"},
-		Flags: map[string]string{
+		OASFlags: map[string]string{
 			"account-seq": "Account sequence. Required. Source: tosscli invest account list.",
 		},
 	},
@@ -391,9 +413,9 @@ func marketCalendarHelp(market string, label string, dateFormat string) commandH
 		Description: "Reads market operating days and session times for the previous, current, and next business day.",
 		OperationID: operationIDs[market],
 		RateLimit:   "MARKET_INFO",
-		Rules:       details[market],
+		OASDetails:  details[market],
 		Examples:    []string{"tosscli invest market-info calendar " + strings.ToLower(market)},
-		Flags: map[string]string{
+		OASFlags: map[string]string{
 			"date": "Reference date. Optional. Format: " + dateFormat + ".",
 		},
 	}
@@ -407,17 +429,22 @@ func orderFlagHelp(includeCreateOnly bool) map[string]string {
 		"quantity":                 "Order quantity as a decimal string. Max length: 30.",
 		"price":                    "Order price as a decimal string. Max length: 30. LIMIT requires price; MARKET disallows price. KR uses integer KRW tick sizes. US uses dollar decimals: up to 4 decimals below $1, up to 2 decimals at $1 or above.",
 		"confirm-high-value-order": "Confirm high-value order. Optional. Default: false. Orders of 100,000,000 KRW or more require true.",
-		"dry-run":                  "Print the request preview as JSON without calling the Toss API.",
 	}
 	if includeCreateOnly {
 		flags["symbol"] = "Stock symbol. Required. Examples: 005930, AAPL. Pattern: letters, digits, '.', '-'."
 		flags["side"] = "Order side. Required. Allowed: BUY, SELL."
 		flags["quantity"] = "Order quantity as a decimal string. Max length: 30. Use exactly one of --quantity or --order-amount. Positive integer by default; fractional quantity is accepted only for US MARKET SELL orders during regular hours, up to 6 decimals."
-		flags["client-order-id"] = "Client order idempotency key. Optional. Max length: 36. Pattern: letters, digits, '-', '_'. Repeated values return the previous order result for 10 minutes. When omitted, tosscli generates one before sending the request."
+		flags["client-order-id"] = "Client order idempotency key. Optional. Max length: 36. Pattern: letters, digits, '-', '_'. Repeated values return the previous order result for 10 minutes."
 		flags["order-amount"] = "Order amount in USD as a decimal string. Max length: 30. Use exactly one of --quantity or --order-amount. US MARKET only. Fixes the amount; fill quantity varies by market price. Regular hours only."
 	} else {
 		flags["quantity"] = "Modified order quantity as a decimal string. Max length: 30. KR stock orders require a positive integer. US stock orders do not support quantity modification."
 		flags["confirm-high-value-order"] = "Confirm high-value order. Optional. Default: false. Orders of 100,000,000 KRW or more require true; orders of 3,000,000,000 KRW or more return max-order-amount-exceeded."
 	}
 	return flags
+}
+
+func dryRunFlagHelp() map[string]string {
+	return map[string]string{
+		"dry-run": "Print the request preview as JSON without calling the Toss API.",
+	}
 }
