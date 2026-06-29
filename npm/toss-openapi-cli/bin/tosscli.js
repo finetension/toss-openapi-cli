@@ -30,6 +30,8 @@ try {
   const paths = [
     path.join(__dirname, "node_modules"),
     path.join(__dirname, ".."),
+    path.join(__dirname, "..", ".."),
+    path.join(path.dirname(process.argv[1]), "..", "lib", "node_modules"),
     ...globalPaths,
   ];
 

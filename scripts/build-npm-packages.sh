@@ -16,13 +16,34 @@ ldflags="$ldflags -X github.com/finetension/toss-openapi-cli/internal/version.Bu
 
 rm -rf "$ROOT_DIR/$OUT_DIR"
 mkdir -p "$ROOT_DIR/$OUT_DIR"
+cp -R "$ROOT_DIR/npm/." "$ROOT_DIR/$OUT_DIR/"
+
+update_package_json() {
+  package_dir="$1"
+
+  node - "$package_dir/package.json" "$VERSION" "$DEP_MODE" <<'NODE'
+const fs = require("node:fs");
+
+const [path, version, depMode] = process.argv.slice(2);
+const pkg = JSON.parse(fs.readFileSync(path, "utf8"));
+
+pkg.version = version;
+
+if (pkg.optionalDependencies) {
+  for (const dep of Object.keys(pkg.optionalDependencies)) {
+    const packageName = dep.replace("@finetension/", "");
+    pkg.optionalDependencies[dep] = depMode === "file" ? `file:../${packageName}` : version;
+  }
+}
+
+fs.writeFileSync(path, `${JSON.stringify(pkg, null, 2)}\n`);
+NODE
+}
 
 write_platform_package() {
   package="$1"
   goos="$2"
   goarch="$3"
-  node_os="$4"
-  node_cpu="$5"
   binary="tosscli"
   if [ "$goos" = "windows" ]; then
     binary="tosscli.exe"
@@ -36,62 +57,16 @@ write_platform_package() {
     -o "$package_dir/bin/$binary" \
     "$ROOT_DIR/cmd/tosscli"
 
-  cat > "$package_dir/package.json" <<EOF
-{
-  "name": "@finetension/$package",
-  "version": "$VERSION",
-  "description": "Platform binary for toss-openapi-cli.",
-  "license": "MIT",
-  "os": ["$node_os"],
-  "cpu": ["$node_cpu"],
-  "files": ["bin"],
-  "publishConfig": {
-    "access": "public"
-  }
-}
-EOF
+  update_package_json "$package_dir"
 }
 
-write_platform_package "tosscli-darwin-arm64" "darwin" "arm64" "darwin" "arm64"
-write_platform_package "tosscli-darwin-x64" "darwin" "amd64" "darwin" "x64"
-write_platform_package "tosscli-linux-arm64" "linux" "arm64" "linux" "arm64"
-write_platform_package "tosscli-linux-x64" "linux" "amd64" "linux" "x64"
-write_platform_package "tosscli-win32-x64" "windows" "amd64" "win32" "x64"
+write_platform_package "tosscli-darwin-arm64" "darwin" "arm64"
+write_platform_package "tosscli-darwin-x64" "darwin" "amd64"
+write_platform_package "tosscli-linux-arm64" "linux" "arm64"
+write_platform_package "tosscli-linux-x64" "linux" "amd64"
+write_platform_package "tosscli-win32-x64" "windows" "amd64"
 
 root_dir="$ROOT_DIR/$OUT_DIR/toss-openapi-cli"
-mkdir -p "$root_dir/bin"
-cp "$ROOT_DIR/npm/toss-openapi-cli/tosscli.js" "$root_dir/bin/tosscli.js"
 cp "$ROOT_DIR/README.md" "$root_dir/README.md"
 chmod +x "$root_dir/bin/tosscli.js"
-
-dep_value() {
-  package="$1"
-  if [ "$DEP_MODE" = "file" ]; then
-    printf '"file:../%s"' "$package"
-  else
-    printf '"%s"' "$VERSION"
-  fi
-}
-
-cat > "$root_dir/package.json" <<EOF
-{
-  "name": "toss-openapi-cli",
-  "version": "$VERSION",
-  "description": "Unofficial CLI for public Toss Open APIs.",
-  "license": "MIT",
-  "bin": {
-    "tosscli": "bin/tosscli.js"
-  },
-  "files": ["bin", "README.md"],
-  "optionalDependencies": {
-    "@finetension/tosscli-darwin-arm64": $(dep_value "tosscli-darwin-arm64"),
-    "@finetension/tosscli-darwin-x64": $(dep_value "tosscli-darwin-x64"),
-    "@finetension/tosscli-linux-arm64": $(dep_value "tosscli-linux-arm64"),
-    "@finetension/tosscli-linux-x64": $(dep_value "tosscli-linux-x64"),
-    "@finetension/tosscli-win32-x64": $(dep_value "tosscli-win32-x64")
-  },
-  "engines": {
-    "node": ">=18"
-  }
-}
-EOF
+update_package_json "$root_dir"

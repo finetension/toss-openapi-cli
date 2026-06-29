@@ -1,0 +1,23 @@
+{
+  "name": "toss-openapi-cli",
+  "version": "0.0.0-dev",
+  "description": "Unofficial CLI for public Toss Open APIs.",
+  "license": "MIT",
+  "bin": {
+    "tosscli": "bin/tosscli.js"
+  },
+  "files": [
+    "bin",
+    "README.md"
+  ],
+  "optionalDependencies": {
+    "@finetension/tosscli-darwin-arm64": "0.0.0-dev",
+    "@finetension/tosscli-darwin-x64": "0.0.0-dev",
+    "@finetension/tosscli-linux-arm64": "0.0.0-dev",
+    "@finetension/tosscli-linux-x64": "0.0.0-dev",
+    "@finetension/tosscli-win32-x64": "0.0.0-dev"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
