@@ -441,7 +441,10 @@ func TestOrderCreateHelpIncludesOASBackedRules(t *testing.T) {
 		"Without --dry-run, this command sends a live order request to the Toss API.",
 		"Provide exactly one of --quantity or --order-amount.",
 		"LIMIT orders require --price.",
-		"--order-amount is for US MARKET buy orders.",
+		"--order-amount is for US MARKET amount-based orders.",
+		"Allowed: DAY, CLS.",
+		"US MARKET only.",
+		"Repeated values return the previous order result for 10 minutes.",
 		"--account-seq int",
 		"Source: tosscli invest account list.",
 	} {
@@ -454,6 +457,9 @@ func TestOrderCreateHelpIncludesOASBackedRules(t *testing.T) {
 	}
 	if strings.Contains(stdout, "--yes") {
 		t.Fatalf("help exposed unsupported --yes flag:\n%s", stdout)
+	}
+	if strings.Contains(stdout, "OPG") {
+		t.Fatalf("help exposed time-in-force value not present in OAS:\n%s", stdout)
 	}
 }
 
@@ -1666,6 +1672,10 @@ func TestInvestOrderCreateRejectsInvalidEnums(t *testing.T) {
 		{
 			name: "time-in-force",
 			args: []string{"invest", "order", "create", "--account-seq", "1", "--symbol", "AAPL", "--side", "BUY", "--order-type", "LIMIT", "--time-in-force", "GTC", "--quantity", "1", "--price", "100"},
+		},
+		{
+			name: "time-in-force OPG not in OAS",
+			args: []string{"invest", "order", "create", "--account-seq", "1", "--symbol", "AAPL", "--side", "BUY", "--order-type", "LIMIT", "--time-in-force", "OPG", "--quantity", "1", "--price", "100"},
 		},
 	}
 

@@ -120,7 +120,7 @@ var helpCatalog = map[string]commandHelp{
 	},
 	"getAccounts": {
 		Short:       "List Toss Invest accounts.",
-		Description: "Lists active user accounts. The returned accountSeq is used as the account header value for holdings, order, buying-power, and other account-scoped APIs.",
+		Description: "Lists user accounts. Currently returns BROKERAGE accounts only; an empty result array means there are no available accounts. Child accounts are not supported. The returned accountSeq is used as the account header value for holdings, order, buying-power, and other account-scoped APIs.",
 		OperationID: "getAccounts",
 		RateLimit:   "ACCOUNT",
 		Examples:    []string{"tosscli invest account list"},
@@ -218,14 +218,26 @@ var helpCatalog = map[string]commandHelp{
 		Description: "Reads active buy warnings and volatility interruption information for a symbol.",
 		OperationID: "getStockWarnings",
 		RateLimit:   "STOCK",
-		Examples:    []string{"tosscli invest stock-info warnings AAPL"},
+		Rules: []string{
+			"Warning types include LIQUIDATION_TRADING, OVERHEATED, INVESTMENT_WARNING, INVESTMENT_RISK, VI_STATIC, VI_DYNAMIC, VI_STATIC_AND_DYNAMIC, and STOCK_WARRANTS.",
+			"Active warnings are items where startDate <= today <= endDate, or endDate is null.",
+			"Results are sorted by startDate descending; ordering is not guaranteed when startDate values are equal.",
+			"Unknown symbols return 404 stock-not-found; symbols with no active warnings return result: [].",
+			"Symbol format: KRX 6-digit code or US ticker. Pattern: letters, digits, '.', '-'.",
+		},
+		Examples: []string{"tosscli invest stock-info warnings AAPL"},
 	},
 	"getExchangeRate": {
 		Short:       "Get an exchange rate.",
 		Description: "Reads KRW/USD exchange-rate information. When date-time is omitted, the current effective rate is returned.",
 		OperationID: "getExchangeRate",
 		RateLimit:   "MARKET_INFO",
-		Examples:    []string{"tosscli invest market-info exchange-rate --base-currency KRW --quote-currency USD"},
+		Rules: []string{
+			"Exchange rates update every 1 minute and are reference display rates.",
+			"The returned rate can differ from the transaction exchange rate applied to an order.",
+			"validFrom and validUntil describe the validity window for the returned rate.",
+		},
+		Examples: []string{"tosscli invest market-info exchange-rate --base-currency KRW --quote-currency USD"},
 		Flags: map[string]string{
 			"base-currency":  "Base currency. Required. Allowed: KRW, USD.",
 			"quote-currency": "Quote currency. Required. Allowed: KRW, USD.",
@@ -263,6 +275,7 @@ var helpCatalog = map[string]commandHelp{
 		Description: "Reads details for a single order in any lifecycle state.",
 		OperationID: "getOrder",
 		RateLimit:   "ORDER_HISTORY",
+		Rules:       []string{"orderId is a server-issued opaque token."},
 		Examples:    []string{"tosscli invest order-history get order-id --account-seq 123456789"},
 		Flags: map[string]string{
 			"account-seq": "Account sequence. Required. Source: tosscli invest account list.",
@@ -279,7 +292,7 @@ var helpCatalog = map[string]commandHelp{
 			"Provide exactly one of --quantity or --order-amount.",
 			"LIMIT orders require --price.",
 			"MARKET orders must not include --price.",
-			"--order-amount is for US MARKET buy orders.",
+			"--order-amount is for US MARKET amount-based orders.",
 		},
 		Examples: []string{
 			"tosscli invest order create --dry-run --account-seq 123456789 --symbol AAPL --side BUY --order-type LIMIT --quantity 1 --price 100",
@@ -295,6 +308,7 @@ var helpCatalog = map[string]commandHelp{
 		Rules: []string{
 			"--dry-run prints the request preview as JSON and does not call the Toss API.",
 			"Without --dry-run, this command sends a live order modification request to the Toss API.",
+			"orderId is a server-issued opaque token.",
 			"KR stock orders require --quantity and it must be a positive integer.",
 			"US stock orders do not support quantity modification; price changes only.",
 			"LIMIT modifications require --price.",
@@ -313,6 +327,7 @@ var helpCatalog = map[string]commandHelp{
 		Rules: []string{
 			"--dry-run prints the request preview as JSON and does not call the Toss API.",
 			"Without --dry-run, this command sends a live order cancellation request to the Toss API.",
+			"orderId is a server-issued opaque token.",
 		},
 		Examples: []string{"tosscli invest order cancel order-id --dry-run --account-seq 123456789"},
 		Flags: map[string]string{
@@ -359,11 +374,24 @@ func marketCalendarHelp(market string, label string, dateFormat string) commandH
 		"KR": "getKrMarketCalendar",
 		"US": "getUsMarketCalendar",
 	}
+	details := map[string][]string{
+		"KR": {
+			"KR calendar uses integrated KRX+NXT mode.",
+			"Special sessions such as after-hours closing price and after-hours single-price trading are excluded.",
+			"Returned times are KST (+09:00).",
+		},
+		"US": {
+			"US calendar includes dayMarket, preMarket, regularMarket, and afterMarket sessions.",
+			"On closed days, all four sessions are null.",
+			"Returned times are KST (+09:00).",
+		},
+	}
 	return commandHelp{
 		Short:       "Get " + label + " market calendar.",
 		Description: "Reads market operating days and session times for the previous, current, and next business day.",
 		OperationID: operationIDs[market],
 		RateLimit:   "MARKET_INFO",
+		Rules:       details[market],
 		Examples:    []string{"tosscli invest market-info calendar " + strings.ToLower(market)},
 		Flags: map[string]string{
 			"date": "Reference date. Optional. Format: " + dateFormat + ".",
@@ -375,20 +403,21 @@ func orderFlagHelp(includeCreateOnly bool) map[string]string {
 	flags := map[string]string{
 		"account-seq":              "Account sequence. Required. Source: tosscli invest account list.",
 		"order-type":               "Order type. Required. Allowed: LIMIT, MARKET.",
-		"time-in-force":            "Time in force. Optional. Allowed: DAY, CLS, OPG. Example: CLS for LOC with LIMIT.",
-		"quantity":                 "Order quantity as a decimal string.",
-		"price":                    "Order price as a decimal string. Required for LIMIT, not allowed for MARKET.",
-		"confirm-high-value-order": "Confirm high-value order. Optional. Required by the API for selected high-value orders.",
+		"time-in-force":            "Time in force. Optional. Allowed: DAY, CLS. Default: DAY. CLS is currently supported for US stock LIMIT orders.",
+		"quantity":                 "Order quantity as a decimal string. Max length: 30.",
+		"price":                    "Order price as a decimal string. Max length: 30. LIMIT requires price; MARKET disallows price. KR uses integer KRW tick sizes. US uses dollar decimals: up to 4 decimals below $1, up to 2 decimals at $1 or above.",
+		"confirm-high-value-order": "Confirm high-value order. Optional. Default: false. Orders of 100,000,000 KRW or more require true.",
 		"dry-run":                  "Print the request preview as JSON without calling the Toss API.",
 	}
 	if includeCreateOnly {
 		flags["symbol"] = "Stock symbol. Required. Examples: 005930, AAPL. Pattern: letters, digits, '.', '-'."
 		flags["side"] = "Order side. Required. Allowed: BUY, SELL."
-		flags["quantity"] = "Order quantity as a decimal string. Use exactly one of --quantity or --order-amount."
-		flags["client-order-id"] = "Client order idempotency key. Optional. Returned as clientOrderId when provided."
-		flags["order-amount"] = "Order amount in USD as a decimal string. Use exactly one of --quantity or --order-amount. US MARKET buy only."
+		flags["quantity"] = "Order quantity as a decimal string. Max length: 30. Use exactly one of --quantity or --order-amount. Positive integer by default; fractional quantity is accepted only for US MARKET SELL orders during regular hours, up to 6 decimals."
+		flags["client-order-id"] = "Client order idempotency key. Optional. Max length: 36. Pattern: letters, digits, '-', '_'. Repeated values return the previous order result for 10 minutes. When omitted, tosscli generates one before sending the request."
+		flags["order-amount"] = "Order amount in USD as a decimal string. Max length: 30. Use exactly one of --quantity or --order-amount. US MARKET only. Fixes the amount; fill quantity varies by market price. Regular hours only."
 	} else {
-		flags["quantity"] = "Modified order quantity as a decimal string. KR stock orders require a positive integer. US stock orders do not support quantity modification."
+		flags["quantity"] = "Modified order quantity as a decimal string. Max length: 30. KR stock orders require a positive integer. US stock orders do not support quantity modification."
+		flags["confirm-high-value-order"] = "Confirm high-value order. Optional. Default: false. Orders of 100,000,000 KRW or more require true; orders of 3,000,000,000 KRW or more return max-order-amount-exceeded."
 	}
 	return flags
 }

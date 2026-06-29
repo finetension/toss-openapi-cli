@@ -60,7 +60,7 @@ func newInvestOrderCreateCommand(deps Dependencies) *cobra.Command {
 				return err
 			}
 			if strings.TrimSpace(timeInForce) != "" {
-				if _, err := allowedValue("--time-in-force", timeInForce, "DAY", "CLS", "OPG"); err != nil {
+				if _, err := allowedValue("--time-in-force", timeInForce, "DAY", "CLS"); err != nil {
 					return err
 				}
 			}
