@@ -437,7 +437,8 @@ func TestOrderCreateHelpIncludesOASBackedRules(t *testing.T) {
 	for _, want := range []string{
 		"OpenAPI operation: createOrder.",
 		"Rate limit group: ORDER.",
-		"Without --dry-run, this command sends a live order request.",
+		"--dry-run prints the request preview as JSON and does not call the Toss API.",
+		"Without --dry-run, this command sends a live order request to the Toss API.",
 		"Provide exactly one of --quantity or --order-amount.",
 		"LIMIT orders require --price.",
 		"--order-amount is for US MARKET buy orders.",

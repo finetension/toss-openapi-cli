@@ -61,7 +61,7 @@ func renderLongHelp(help commandHelp) string {
 		parts = append(parts, strings.Join(lines, "\n"))
 	}
 	if len(help.Rules) > 0 {
-		lines := []string{"Rules:"}
+		lines := []string{"Details:"}
 		for _, rule := range help.Rules {
 			lines = append(lines, "  - "+rule)
 		}
@@ -189,7 +189,7 @@ var helpCatalog = map[string]commandHelp{
 		OperationID: "getCandles",
 		RateLimit:   "MARKET_DATA_CHART",
 		Rules: []string{
-			"Use nextBefore from the response as --before to request the next page.",
+			"Paginated responses include nextBefore. Pass that value to --before to request the next page.",
 		},
 		Examples: []string{
 			"tosscli invest market-data candles --symbol AAPL --interval 1d",
@@ -199,7 +199,7 @@ var helpCatalog = map[string]commandHelp{
 			"symbol":   "Stock symbol. Required. Examples: 005930, AAPL. Pattern: letters, digits, '.', '-'.",
 			"interval": "Candle interval. Required. Allowed: 1m, 1d.",
 			"count":    "Candle count. Optional. Range: 1-200. Default: 100.",
-			"before":   "Exclusive upper bound timestamp. Optional. Format: ISO 8601 date-time. Use response nextBefore for pagination.",
+			"before":   "Exclusive upper bound timestamp. Optional. Format: ISO 8601 date-time. Response nextBefore can be passed here for pagination.",
 			"adjusted": "Request adjusted prices. Optional. Default: true in the OpenAPI spec.",
 		},
 	},
@@ -274,8 +274,8 @@ var helpCatalog = map[string]commandHelp{
 		OperationID: "createOrder",
 		RateLimit:   "ORDER",
 		Rules: []string{
-			"Use --dry-run first to preview the request without sending it.",
-			"Without --dry-run, this command sends a live order request.",
+			"--dry-run prints the request preview as JSON and does not call the Toss API.",
+			"Without --dry-run, this command sends a live order request to the Toss API.",
 			"Provide exactly one of --quantity or --order-amount.",
 			"LIMIT orders require --price.",
 			"MARKET orders must not include --price.",
@@ -293,8 +293,8 @@ var helpCatalog = map[string]commandHelp{
 		OperationID: "modifyOrder",
 		RateLimit:   "ORDER",
 		Rules: []string{
-			"Use --dry-run first to preview the request without sending it.",
-			"Without --dry-run, this command sends a live order modification request.",
+			"--dry-run prints the request preview as JSON and does not call the Toss API.",
+			"Without --dry-run, this command sends a live order modification request to the Toss API.",
 			"KR stock orders require --quantity and it must be a positive integer.",
 			"US stock orders do not support quantity modification; price changes only.",
 			"LIMIT modifications require --price.",
@@ -311,13 +311,13 @@ var helpCatalog = map[string]commandHelp{
 		OperationID: "cancelOrder",
 		RateLimit:   "ORDER",
 		Rules: []string{
-			"Use --dry-run first to preview the request without sending it.",
-			"Without --dry-run, this command sends a live order cancellation request.",
+			"--dry-run prints the request preview as JSON and does not call the Toss API.",
+			"Without --dry-run, this command sends a live order cancellation request to the Toss API.",
 		},
 		Examples: []string{"tosscli invest order cancel order-id --dry-run --account-seq 123456789"},
 		Flags: map[string]string{
 			"account-seq": "Account sequence. Required. Source: tosscli invest account list.",
-			"dry-run":     "Build the request without sending it. Recommended before live order cancellation.",
+			"dry-run":     "Print the request preview as JSON without calling the Toss API.",
 		},
 	},
 	"getBuyingPower": {
@@ -379,7 +379,7 @@ func orderFlagHelp(includeCreateOnly bool) map[string]string {
 		"quantity":                 "Order quantity as a decimal string.",
 		"price":                    "Order price as a decimal string. Required for LIMIT, not allowed for MARKET.",
 		"confirm-high-value-order": "Confirm high-value order. Optional. Required by the API for selected high-value orders.",
-		"dry-run":                  "Build the request without sending it. Recommended before live order mutation.",
+		"dry-run":                  "Print the request preview as JSON without calling the Toss API.",
 	}
 	if includeCreateOnly {
 		flags["symbol"] = "Stock symbol. Required. Examples: 005930, AAPL. Pattern: letters, digits, '.', '-'."
