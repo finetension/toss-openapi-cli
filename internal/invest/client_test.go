@@ -159,6 +159,66 @@ func TestGetAccounts(t *testing.T) {
 	}
 }
 
+func TestGetAccountsIncludesRateLimitHeaders(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("X-RateLimit-Limit", "10")
+		w.Header().Set("X-RateLimit-Remaining", "8")
+		w.Header().Set("X-RateLimit-Reset", "1")
+		_ = json.NewEncoder(w).Encode(AccountsResponse{
+			Result: []Account{{AccountSeq: 1}},
+		})
+	}))
+	defer server.Close()
+
+	client := NewClient(server.URL, server.Client())
+	got, err := client.GetAccounts(context.Background(), "access-token")
+	if err != nil {
+		t.Fatalf("GetAccounts err = %v", err)
+	}
+
+	if got.Headers == nil {
+		t.Fatal("headers = nil, want rate limit headers")
+	}
+	assertHeaderInt(t, got.Headers, "X-RateLimit-Limit", 10)
+	assertHeaderInt(t, got.Headers, "X-RateLimit-Remaining", 8)
+	assertHeaderInt(t, got.Headers, "X-RateLimit-Reset", 1)
+	if got.Headers["Retry-After"] != nil {
+		t.Fatalf("Retry-After = %v, want nil", *got.Headers["Retry-After"])
+	}
+}
+
+func TestAPIErrorIncludesRateLimitHeaders(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("X-RateLimit-Limit", "3")
+		w.Header().Set("X-RateLimit-Remaining", "0")
+		w.Header().Set("X-RateLimit-Reset", "1")
+		w.Header().Set("Retry-After", "1")
+		w.WriteHeader(http.StatusTooManyRequests)
+		_, _ = w.Write([]byte(`{"error":{"requestId":"req-123","code":"rate-limit-exceeded","message":"too many requests"}}`))
+	}))
+	defer server.Close()
+
+	client := NewClient(server.URL, server.Client())
+	_, err := client.GetAccounts(context.Background(), "access-token")
+	if err == nil {
+		t.Fatal("GetAccounts err = nil, want error")
+	}
+
+	var apiErr *APIError
+	if !errors.As(err, &apiErr) {
+		t.Fatalf("err = %T, want *APIError", err)
+	}
+	if apiErr.RequestID != "req-123" {
+		t.Fatalf("RequestID = %q", apiErr.RequestID)
+	}
+	assertHeaderInt(t, apiErr.Headers, "X-RateLimit-Limit", 3)
+	assertHeaderInt(t, apiErr.Headers, "X-RateLimit-Remaining", 0)
+	assertHeaderInt(t, apiErr.Headers, "X-RateLimit-Reset", 1)
+	assertHeaderInt(t, apiErr.Headers, "Retry-After", 1)
+}
+
 func TestGetPrices(t *testing.T) {
 	var gotMethod string
 	var gotPath string
@@ -208,6 +268,20 @@ func TestGetPrices(t *testing.T) {
 	}
 	if got.Result[0].Symbol != "AAPL" || got.Result[0].LastPrice != "185.70" || got.Result[0].Currency != "USD" {
 		t.Fatalf("price = %+v", got.Result[0])
+	}
+}
+
+func assertHeaderInt(t *testing.T, headers RateLimitHeaders, name string, want int) {
+	t.Helper()
+	value, ok := headers[name]
+	if !ok {
+		t.Fatalf("headers[%q] missing", name)
+	}
+	if value == nil {
+		t.Fatalf("headers[%q] = nil, want %d", name, want)
+	}
+	if *value != want {
+		t.Fatalf("headers[%q] = %d, want %d", name, *value, want)
 	}
 }
 

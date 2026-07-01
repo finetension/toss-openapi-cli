@@ -42,12 +42,14 @@ type OAuth2TokenRequest struct {
 }
 
 type OAuth2TokenResponse struct {
+	ResponseHeaders
 	AccessToken string `json:"access_token"`
 	TokenType   string `json:"token_type"`
 	ExpiresIn   int64  `json:"expires_in"`
 }
 
 type AccountsResponse struct {
+	ResponseHeaders
 	Result []Account `json:"result"`
 }
 
@@ -58,6 +60,7 @@ type Account struct {
 }
 
 type PricesResponse struct {
+	ResponseHeaders
 	Result []Price `json:"result"`
 }
 
@@ -69,22 +72,27 @@ type Price struct {
 }
 
 type OrderbookResponse struct {
+	ResponseHeaders
 	Result json.RawMessage `json:"result"`
 }
 
 type TradesResponse struct {
+	ResponseHeaders
 	Result json.RawMessage `json:"result"`
 }
 
 type StocksResponse struct {
+	ResponseHeaders
 	Result json.RawMessage `json:"result"`
 }
 
 type StockWarningsResponse struct {
+	ResponseHeaders
 	Result json.RawMessage `json:"result"`
 }
 
 type PriceLimitResponse struct {
+	ResponseHeaders
 	Result json.RawMessage `json:"result"`
 }
 
@@ -97,6 +105,7 @@ type CandleParams struct {
 }
 
 type CandlesResponse struct {
+	ResponseHeaders
 	Result json.RawMessage `json:"result"`
 }
 
@@ -107,14 +116,17 @@ type ExchangeRateParams struct {
 }
 
 type ExchangeRateResponse struct {
+	ResponseHeaders
 	Result json.RawMessage `json:"result"`
 }
 
 type MarketCalendarResponse struct {
+	ResponseHeaders
 	Result json.RawMessage `json:"result"`
 }
 
 type BuyingPowerResponse struct {
+	ResponseHeaders
 	Result BuyingPower `json:"result"`
 }
 
@@ -124,6 +136,7 @@ type BuyingPower struct {
 }
 
 type SellableQuantityResponse struct {
+	ResponseHeaders
 	Result SellableQuantity `json:"result"`
 }
 
@@ -132,10 +145,12 @@ type SellableQuantity struct {
 }
 
 type HoldingsResponse struct {
+	ResponseHeaders
 	Result json.RawMessage `json:"result"`
 }
 
 type CommissionsResponse struct {
+	ResponseHeaders
 	Result json.RawMessage `json:"result"`
 }
 
@@ -149,10 +164,12 @@ type OrderListParams struct {
 }
 
 type OrdersResponse struct {
+	ResponseHeaders
 	Result json.RawMessage `json:"result"`
 }
 
 type OrderResponse struct {
+	ResponseHeaders
 	Result json.RawMessage `json:"result"`
 }
 
@@ -176,7 +193,18 @@ type OrderModifyRequest struct {
 }
 
 type OrderMutationResponse struct {
+	ResponseHeaders
 	Result json.RawMessage `json:"result"`
+}
+
+type RateLimitHeaders map[string]*int
+
+type ResponseHeaders struct {
+	Headers RateLimitHeaders `json:"headers,omitempty"`
+}
+
+func (h *ResponseHeaders) SetHeaders(headers RateLimitHeaders) {
+	h.Headers = headers
 }
 
 type APIError struct {
@@ -187,6 +215,7 @@ type APIError struct {
 	RequestID       string
 	RawBody         string
 	WWWAuthenticate string
+	Headers         RateLimitHeaders
 }
 
 func (e *APIError) Error() string {
@@ -625,6 +654,7 @@ func (c *Client) doJSON(req *http.Request, out any) error {
 	if err := dec.Decode(out); err != nil {
 		return err
 	}
+	setResponseHeaders(out, rateLimitHeaders(resp.Header))
 	return nil
 }
 
@@ -634,6 +664,7 @@ func parseAPIError(resp *http.Response, body []byte) error {
 		RequestID:       resp.Header.Get("X-Request-Id"),
 		RawBody:         string(body),
 		WWWAuthenticate: resp.Header.Get("WWW-Authenticate"),
+		Headers:         rateLimitHeaders(resp.Header),
 	}
 
 	var oauthErr struct {
@@ -669,4 +700,47 @@ func parseAPIError(resp *http.Response, body []byte) error {
 	apiErr.Reason = "http-error"
 	apiErr.Message = http.StatusText(resp.StatusCode)
 	return apiErr
+}
+
+type responseHeaderSetter interface {
+	SetHeaders(RateLimitHeaders)
+}
+
+func setResponseHeaders(out any, headers RateLimitHeaders) {
+	if len(headers) == 0 {
+		return
+	}
+	if setter, ok := out.(responseHeaderSetter); ok {
+		setter.SetHeaders(headers)
+	}
+}
+
+func rateLimitHeaders(headers http.Header) RateLimitHeaders {
+	names := []string{
+		"X-RateLimit-Limit",
+		"X-RateLimit-Remaining",
+		"X-RateLimit-Reset",
+		"Retry-After",
+	}
+
+	hasAny := false
+	out := make(RateLimitHeaders, len(names))
+	for _, name := range names {
+		value := strings.TrimSpace(headers.Get(name))
+		if value == "" {
+			out[name] = nil
+			continue
+		}
+		hasAny = true
+		parsed, err := strconv.Atoi(value)
+		if err != nil {
+			out[name] = nil
+			continue
+		}
+		out[name] = &parsed
+	}
+	if !hasAny {
+		return nil
+	}
+	return out
 }

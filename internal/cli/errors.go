@@ -31,6 +31,10 @@ func normalizeCobraError(err error) error {
 			message = "Toss Invest API request failed"
 		}
 		app := apperr.New(code, message, apperr.ExitAPI)
+		app.RequestID = apiErr.RequestID
+		if len(apiErr.Headers) > 0 {
+			app.Headers = map[string]*int(apiErr.Headers)
+		}
 		if isIPAllowlistError(err) {
 			app.Hint = ipAllowlistHint
 		}

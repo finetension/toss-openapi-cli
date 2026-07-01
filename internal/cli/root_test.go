@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"net/http"
 	"reflect"
 	"strings"
 	"testing"
@@ -931,6 +932,14 @@ func TestInvestAccountListMissingCredentials(t *testing.T) {
 func TestInvestMarketDataPricesOutputsPrices(t *testing.T) {
 	marketData := &fakeMarketDataAPI{
 		response: invest.PricesResponse{
+			ResponseHeaders: invest.ResponseHeaders{
+				Headers: invest.RateLimitHeaders{
+					"X-RateLimit-Limit":     testIntPtr(10),
+					"X-RateLimit-Remaining": testIntPtr(8),
+					"X-RateLimit-Reset":     testIntPtr(1),
+					"Retry-After":           nil,
+				},
+			},
 			Result: []invest.Price{
 				{
 					Symbol:    "AAPL",
@@ -970,6 +979,15 @@ func TestInvestMarketDataPricesOutputsPrices(t *testing.T) {
 	if got.Result[0].Symbol != "AAPL" || got.Result[0].LastPrice != "185.70" || got.Result[0].Currency != "USD" {
 		t.Fatalf("price = %+v", got.Result[0])
 	}
+	if got.Headers == nil {
+		t.Fatal("headers = nil, want rate limit headers")
+	}
+	assertCLIHeaderInt(t, got.Headers, "X-RateLimit-Limit", 10)
+	assertCLIHeaderInt(t, got.Headers, "X-RateLimit-Remaining", 8)
+	assertCLIHeaderInt(t, got.Headers, "X-RateLimit-Reset", 1)
+	if got.Headers["Retry-After"] != nil {
+		t.Fatalf("Retry-After = %v, want nil", *got.Headers["Retry-After"])
+	}
 }
 
 func TestInvestMarketDataPricesRequiresSymbols(t *testing.T) {
@@ -994,6 +1012,57 @@ func TestInvestMarketDataPricesRequiresSymbols(t *testing.T) {
 	if got.Error.Code != apperr.CodeUsage {
 		t.Fatalf("error code = %q", got.Error.Code)
 	}
+}
+
+func TestAPIErrorOutputsRateLimitHeaders(t *testing.T) {
+	marketData := &fakeMarketDataAPI{
+		err: &invest.APIError{
+			StatusCode: http.StatusTooManyRequests,
+			RequestID:  "req-123",
+			Code:       "rate-limit-exceeded",
+			Message:    "too many requests",
+			Headers: invest.RateLimitHeaders{
+				"X-RateLimit-Limit":     testIntPtr(3),
+				"X-RateLimit-Remaining": testIntPtr(0),
+				"X-RateLimit-Reset":     testIntPtr(1),
+				"Retry-After":           testIntPtr(1),
+			},
+		},
+	}
+
+	stdout, stderr, exitCode := ExecuteForTestWithDeps(Dependencies{
+		EnvLookup:  testEnvAccessToken,
+		MarketData: marketData,
+	}, "invest", "market-data", "prices", "--symbols", "AAPL")
+
+	if exitCode != apperr.ExitAPI {
+		t.Fatalf("exitCode = %d, want %d; stdout=%s stderr=%s", exitCode, apperr.ExitAPI, stdout, stderr)
+	}
+	if stderr != "" {
+		t.Fatalf("stderr = %q, want empty", stderr)
+	}
+
+	var got struct {
+		Error struct {
+			RequestID string `json:"requestId"`
+			Code      string `json:"code"`
+			Message   string `json:"message"`
+		} `json:"error"`
+		Headers map[string]*int `json:"headers"`
+	}
+	if err := json.Unmarshal([]byte(stdout), &got); err != nil {
+		t.Fatalf("stdout is not valid JSON: %v\n%s", err, stdout)
+	}
+	if got.Error.RequestID != "req-123" {
+		t.Fatalf("requestId = %q", got.Error.RequestID)
+	}
+	if got.Error.Code != "rate-limit-exceeded" || got.Error.Message != "too many requests" {
+		t.Fatalf("error = %+v", got.Error)
+	}
+	assertCLIHeaderInt(t, got.Headers, "X-RateLimit-Limit", 3)
+	assertCLIHeaderInt(t, got.Headers, "X-RateLimit-Remaining", 0)
+	assertCLIHeaderInt(t, got.Headers, "X-RateLimit-Reset", 1)
+	assertCLIHeaderInt(t, got.Headers, "Retry-After", 1)
 }
 
 func TestInvestMarketDataOrderbookOutputsOrderbook(t *testing.T) {
@@ -2406,6 +2475,24 @@ func stringSliceContains(values []string, want string) bool {
 		}
 	}
 	return false
+}
+
+func testIntPtr(value int) *int {
+	return &value
+}
+
+func assertCLIHeaderInt(t *testing.T, headers map[string]*int, name string, want int) {
+	t.Helper()
+	value, ok := headers[name]
+	if !ok {
+		t.Fatalf("headers[%q] missing", name)
+	}
+	if value == nil {
+		t.Fatalf("headers[%q] = nil, want %d", name, want)
+	}
+	if *value != want {
+		t.Fatalf("headers[%q] = %d, want %d", name, *value, want)
+	}
 }
 
 func testEnvAccessToken(key string) (string, bool) {
